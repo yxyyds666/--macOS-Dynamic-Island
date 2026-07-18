@@ -15,9 +15,9 @@ enum AppConstants {
     static let islandHoverWidth: CGFloat = 300
     static let islandHoverHeight: CGFloat = 52
 
-    // Peek state: dwell ~1s and the music player drapes straight down. Same
-    // width as hover so the reveal is purely vertical.
-    static let islandPeekWidth: CGFloat = 300
+    // Peek state: clicked once and the music player drapes straight down.
+    // Kept narrow so the "chin" is slim; content still fits comfortably.
+    static let islandPeekWidth: CGFloat = 260
     static let islandPeekHeight: CGFloat = 250
     static let islandCornerRadius: CGFloat = 24
 
