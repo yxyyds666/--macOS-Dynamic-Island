@@ -77,6 +77,9 @@ struct SettingsView: View {
         settings.showFileModule = showFileModule
         settings.defaultModule = defaultModule
         settings.animationSpeed = animationSpeed
+        // Re-read launchAtLogin in case SMAppService rejected the change.
+        launchAtLogin = settings.launchAtLogin
+        NotificationCenter.default.post(name: .settingsDidChange, object: nil)
     }
 }
 

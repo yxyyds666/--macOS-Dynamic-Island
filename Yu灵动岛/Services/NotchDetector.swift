@@ -17,7 +17,25 @@ struct NotchDetector {
         guard let screen = NSScreen.main else { return 0 }
         return screen.frame.midX
     }
+
+    /// The idle island size, using the screen's real notch dimensions so the
+    /// collapsed pill matches the physical notch exactly.
+    static func idleSize() -> CGSize {
+        guard let screen = NSScreen.main else {
+            return CGSize(width: AppConstants.notchWidth, height: AppConstants.notchHeight)
+        }
+        return CGSize(width: screen.notchWidth, height: screen.notchHeight)
+    }
     
+    /// A frame of `size` centered on the notch's X and pinned to the top of the
+    /// screen — used to grow/shrink the island in place across its three states.
+    static func islandFrame(for size: CGSize) -> NSRect {
+        guard let screen = NSScreen.main else { return .zero }
+        let x = screen.frame.midX - size.width / 2
+        let y = screen.frame.maxY - size.height
+        return NSRect(x: x, y: y, width: size.width, height: size.height)
+    }
+
     static func expandPanelFrame() -> NSRect {
         guard let screen = NSScreen.main else { return .zero }
         let panelWidth = AppConstants.expandPanelWidth

@@ -7,8 +7,15 @@ final class AppState {
     // Current active module
     var currentModule: NotchModule = .music
     
-    // Expand panel state
+    // Interaction states, in increasing order of reveal:
+    //   isHovered  — mouse over the notch → a subtle bulge (hover)
+    //   isPeeking  — dwelled ~1s → music player drapes down (peek)
+    //   isExpanded — clicked → wide bar wrapping around the notch (expanded)
+    var isHovered: Bool = false
+    var isPeeking: Bool = false
     var isExpanded: Bool = false
+
+    @ObservationIgnored private var dwellTimer: Timer?
     
     // Music state
     var isPlaying: Bool = false
@@ -30,11 +37,77 @@ final class AppState {
     
     // Drag state
     var isDragTarget: Bool = false
-    
+
+    // Media control (injected by AppDelegate; not observed)
+    @ObservationIgnored weak var mediaService: (any MediaServiceProtocol)?
+    @ObservationIgnored private var progressTimer: Timer?
+
     init() {
         loadSettings()
+        // Honor the user's preferred default module, clamped to what's enabled.
+        let preferred = SettingsManager.shared.defaultModule
+        currentModule = availableModules.contains(preferred) ? preferred : (availableModules.first ?? .music)
+
+        NotificationCenter.default.addObserver(
+            forName: .settingsDidChange,
+            object: nil,
+            queue: .main
+        ) { [weak self] _ in
+            self?.reloadSettings()
+        }
+    }
+
+    /// Re-reads persisted settings and re-clamps the active module. Called when
+    /// the Settings window saves changes.
+    func reloadSettings() {
+        loadSettings()
+        if !availableModules.contains(currentModule) {
+            currentModule = availableModules.first ?? .music
+        }
     }
     
+    /// The island's visual state: expanded wins, then peek, then hover, else idle.
+    var islandMode: IslandMode {
+        if isExpanded { return .expanded }
+        if isPeeking { return .peek }
+        if isHovered { return .hover }
+        return .idle
+    }
+
+    /// Mouse entered the notch: bulge immediately, and start the dwell timer
+    /// that promotes hover → peek after ~1s.
+    func mouseEnteredNotch() {
+        isHovered = true
+        dwellTimer?.invalidate()
+        dwellTimer = Timer.scheduledTimer(
+            withTimeInterval: AppConstants.peekDwellSeconds,
+            repeats: false
+        ) { [weak self] _ in
+            guard let self else { return }
+            // Only promote if still hovering and not already expanded.
+            if self.isHovered && !self.isExpanded {
+                self.isPeeking = true
+            }
+        }
+    }
+
+    /// Mouse left the notch: cancel the dwell timer and collapse everything
+    /// back to idle.
+    func mouseExitedNotch() {
+        dwellTimer?.invalidate()
+        dwellTimer = nil
+        isHovered = false
+        isPeeking = false
+        isExpanded = false
+    }
+
+    /// A click anywhere on the island commits to the expanded layout.
+    func expand() {
+        dwellTimer?.invalidate()
+        dwellTimer = nil
+        isExpanded = true
+    }
+
     var hasMediaPlaying: Bool {
         !songTitle.isEmpty
     }
@@ -74,10 +147,55 @@ final class AppState {
     func clearAllFiles() {
         fileItems.removeAll()
     }
+
+    // MARK: - Media Control
+
+    func togglePlayPause() {
+        mediaService?.togglePlayPause()
+        // Optimistic update; corrected by the next now-playing poll.
+        isPlaying.toggle()
+    }
+
+    func nextTrack() {
+        mediaService?.nextTrack()
+    }
+
+    func previousTrack() {
+        mediaService?.previousTrack()
+    }
+
+    func seek(to time: TimeInterval) {
+        let clamped = min(max(0, time), duration)
+        currentTime = clamped
+        mediaService?.seek(to: clamped)
+    }
+
+    func setVolume(_ newValue: Float) {
+        volume = newValue
+        mediaService?.setVolume(newValue)
+    }
+
+    /// Smoothly advances `currentTime` between the 1s now-playing polls so the
+    /// progress bar doesn't visibly jump.
+    func startProgressTimer() {
+        progressTimer?.invalidate()
+        progressTimer = Timer.scheduledTimer(withTimeInterval: 0.5, repeats: true) { [weak self] _ in
+            guard let self, self.isPlaying else { return }
+            let next = self.currentTime + 0.5
+            if self.duration <= 0 || next <= self.duration {
+                self.currentTime = next
+            }
+        }
+    }
+
+    func stopProgressTimer() {
+        progressTimer?.invalidate()
+        progressTimer = nil
+    }
     
     private func loadSettings() {
-        let defaults = UserDefaults.standard
-        showMusicModule = defaults.object(forKey: AppConstants.DefaultsKeys.showMusicModule) as? Bool ?? true
-        showFileModule = defaults.object(forKey: AppConstants.DefaultsKeys.showFileModule) as? Bool ?? true
+        let settings = SettingsManager.shared
+        showMusicModule = settings.showMusicModule
+        showFileModule = settings.showFileModule
     }
 }

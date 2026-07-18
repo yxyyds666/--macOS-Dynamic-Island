@@ -1,7 +1,7 @@
 import Foundation
 import Combine
 
-protocol MediaServiceProtocol {
+protocol MediaServiceProtocol: AnyObject {
     var nowPlayingPublisher: AnyPublisher<NowPlayingInfo, Never> { get }
     var isPlayingPublisher: AnyPublisher<Bool, Never> { get }
     

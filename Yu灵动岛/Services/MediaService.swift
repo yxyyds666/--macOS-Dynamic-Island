@@ -78,29 +78,25 @@ final class MediaRemoteLoader: @unchecked Sendable {
     
     private func loadConstants() {
         guard let handle = handle else { return }
-        
-        // Load string constants
-        if let sym = dlsym(handle, "kMRMediaRemoteNowPlayingInfoTitle") {
-            kMRMediaRemoteNowPlayingInfoTitle = unsafeBitCast(sym, to: NSString.self) as String
-        }
-        if let sym = dlsym(handle, "kMRMediaRemoteNowPlayingInfoArtist") {
-            kMRMediaRemoteNowPlayingInfoArtist = unsafeBitCast(sym, to: NSString.self) as String
-        }
-        if let sym = dlsym(handle, "kMRMediaRemoteNowPlayingInfoAlbum") {
-            kMRMediaRemoteNowPlayingInfoAlbum = unsafeBitCast(sym, to: NSString.self) as String
-        }
-        if let sym = dlsym(handle, "kMRMediaRemoteNowPlayingInfoDuration") {
-            kMRMediaRemoteNowPlayingInfoDuration = unsafeBitCast(sym, to: NSString.self) as String
-        }
-        if let sym = dlsym(handle, "kMRMediaRemoteNowPlayingInfoElapsedTime") {
-            kMRMediaRemoteNowPlayingInfoElapsedTime = unsafeBitCast(sym, to: NSString.self) as String
-        }
-        if let sym = dlsym(handle, "kMRMediaRemoteNowPlayingInfoPlaybackRate") {
-            kMRMediaRemoteNowPlayingInfoPlaybackRate = unsafeBitCast(sym, to: NSString.self) as String
-        }
-        if let sym = dlsym(handle, "kMRMediaRemoteNowPlayingInfoArtworkData") {
-            kMRMediaRemoteNowPlayingInfoArtworkData = unsafeBitCast(sym, to: NSString.self) as String
-        }
+
+        // `dlsym` returns the *address* of the exported `NSString *` variable,
+        // not the string itself. We must dereference that pointer once to read
+        // the actual NSString value. Casting the address straight to NSString
+        // treats arbitrary memory as an object and crashes.
+        kMRMediaRemoteNowPlayingInfoTitle = string(named: "kMRMediaRemoteNowPlayingInfoTitle", from: handle)
+        kMRMediaRemoteNowPlayingInfoArtist = string(named: "kMRMediaRemoteNowPlayingInfoArtist", from: handle)
+        kMRMediaRemoteNowPlayingInfoAlbum = string(named: "kMRMediaRemoteNowPlayingInfoAlbum", from: handle)
+        kMRMediaRemoteNowPlayingInfoDuration = string(named: "kMRMediaRemoteNowPlayingInfoDuration", from: handle)
+        kMRMediaRemoteNowPlayingInfoElapsedTime = string(named: "kMRMediaRemoteNowPlayingInfoElapsedTime", from: handle)
+        kMRMediaRemoteNowPlayingInfoPlaybackRate = string(named: "kMRMediaRemoteNowPlayingInfoPlaybackRate", from: handle)
+        kMRMediaRemoteNowPlayingInfoArtworkData = string(named: "kMRMediaRemoteNowPlayingInfoArtworkData", from: handle)
+    }
+
+    /// Reads an exported `NSString *` constant by dereferencing the symbol
+    /// address returned by `dlsym`.
+    private func string(named name: String, from handle: UnsafeMutableRawPointer) -> String? {
+        guard let sym = dlsym(handle, name) else { return nil }
+        return sym.assumingMemoryBound(to: NSString.self).pointee as String
     }
     
     // MARK: - Public API

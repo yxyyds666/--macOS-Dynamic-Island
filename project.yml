@@ -21,6 +21,9 @@ targets:
       - path: Yu灵动岛
         excludes:
           - "**/.DS_Store"
+          # Bundled by build.sh after the Xcode build (the .framework is a
+          # directory Xcode would otherwise try to compile as sources).
+          - "Resources/MediaRemoteAdapter/**"
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.yuxi.yulingdongdao

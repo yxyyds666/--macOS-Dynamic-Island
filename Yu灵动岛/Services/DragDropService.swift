@@ -1,53 +1,81 @@
 import AppKit
 import UniformTypeIdentifiers
 
-final class DragDropService: NSObject, NSDraggingDestination {
+/// Owns the drag-in logic and vends an `NSView` that actually receives the
+/// dragging callbacks. Registering types on an `NSHostingView` isn't enough —
+/// AppKit delivers `NSDraggingDestination` messages to the view itself, so we
+/// need a concrete view that forwards them here.
+final class DragDropService: NSObject {
     private let appState: AppState
-    
+
     init(appState: AppState) {
         self.appState = appState
     }
-    
-    func setupDragDestination(for view: NSView) {
-        view.registerForDraggedTypes([
-            .fileURL,
-            .png,
-            .tiff,
-            .string
-        ])
+
+    /// Creates the overlay view to drop into the notch window's content view.
+    func makeDraggingView() -> NSView {
+        let view = DraggingView()
+        view.service = self
+        view.registerForDraggedTypes([.fileURL])
+        return view
     }
-    
-    func draggingEntered(_ sender: NSDraggingInfo) -> NSDragOperation {
+
+    // MARK: - Drop handling
+
+    fileprivate func draggingEntered() -> NSDragOperation {
         appState.isDragTarget = true
         return .copy
     }
-    
-    func draggingExited(_ sender: NSDraggingInfo?) {
+
+    fileprivate func draggingExited() {
         appState.isDragTarget = false
     }
-    
-    func performDragOperation(_ sender: NSDraggingInfo) -> Bool {
+
+    fileprivate func performDrop(_ sender: NSDraggingInfo) -> Bool {
         appState.isDragTarget = false
-        
+
         let pasteboard = sender.draggingPasteboard
-        guard let urls = pasteboard.readObjects(
-            forClasses: [NSURL.self],
-            options: [
-                .urlReadingContentsConformToTypes: [UTType.item.identifier]
-            ]
-        ) as? [URL] else {
+        guard let urls = pasteboard.readObjects(forClasses: [NSURL.self]) as? [URL],
+              !urls.isEmpty else {
             return false
         }
-        
-        for url in urls.prefix(AppConstants.maxFileItems - appState.fileItems.count) {
-            let item = FileItem(url: url)
-            appState.addFile(item)
+
+        let remaining = AppConstants.maxFileItems - appState.fileItems.count
+        for url in urls.prefix(remaining) {
+            appState.addFile(FileItem(url: url))
         }
-        
+        // Auto-switch to the file module so the user sees the result.
+        if appState.showFileModule {
+            appState.currentModule = .file
+        }
         return true
     }
-    
-    func prepareForDragOperation(_ sender: NSDraggingInfo) -> Bool {
-        return true
+}
+
+/// Concrete view that receives dragging callbacks and forwards them.
+private final class DraggingView: NSView {
+    weak var service: DragDropService?
+
+    override func draggingEntered(_ sender: NSDraggingInfo) -> NSDragOperation {
+        service?.draggingEntered() ?? []
+    }
+
+    override func draggingExited(_ sender: NSDraggingInfo?) {
+        service?.draggingExited()
+    }
+
+    override func performDragOperation(_ sender: NSDraggingInfo) -> Bool {
+        service?.performDrop(sender) ?? false
+    }
+
+    override func prepareForDragOperation(_ sender: NSDraggingInfo) -> Bool {
+        true
+    }
+
+    /// Let mouse clicks fall through to the SwiftUI content underneath. Drag
+    /// destinations are resolved by AppKit independently of `hitTest`, so drops
+    /// still land here while taps reach the buttons and tap-to-expand gesture.
+    override func hitTest(_ point: NSPoint) -> NSView? {
+        nil
     }
 }
