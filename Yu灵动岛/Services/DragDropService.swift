@@ -24,11 +24,15 @@ final class DragDropService: NSObject {
 
     fileprivate func draggingEntered() -> NSDragOperation {
         appState.isDragTarget = true
+        // Pop the island open so the file transfer panel is ready to receive.
+        appState.dragEnteredNotch()
         return .copy
     }
 
     fileprivate func draggingExited() {
         appState.isDragTarget = false
+        // Drag left without dropping — snap back to idle.
+        appState.dragExitedNotch()
     }
 
     fileprivate func performDrop(_ sender: NSDraggingInfo) -> Bool {
@@ -37,6 +41,8 @@ final class DragDropService: NSObject {
         let pasteboard = sender.draggingPasteboard
         guard let urls = pasteboard.readObjects(forClasses: [NSURL.self]) as? [URL],
               !urls.isEmpty else {
+            // Nothing usable dropped — snap back to idle.
+            appState.dragExitedNotch()
             return false
         }
 
@@ -48,6 +54,7 @@ final class DragDropService: NSObject {
         if appState.showFileModule {
             appState.currentModule = .file
         }
+        // Stay expanded after the drop; the next mouse-exit collapses it.
         return true
     }
 }

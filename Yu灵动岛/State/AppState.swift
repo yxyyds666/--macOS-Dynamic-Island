@@ -108,6 +108,24 @@ final class AppState {
         isExpanded = true
     }
 
+    /// A file drag arrived over the notch: pop straight open to the expanded
+    /// layout so the file transfer panel is ready to receive the drop.
+    func dragEnteredNotch() {
+        dwellTimer?.invalidate()
+        dwellTimer = nil
+        isHovered = true
+        isExpanded = true
+    }
+
+    /// The drag left without dropping: snap crisply back to idle.
+    func dragExitedNotch() {
+        dwellTimer?.invalidate()
+        dwellTimer = nil
+        isHovered = false
+        isPeeking = false
+        isExpanded = false
+    }
+
     var hasMediaPlaying: Bool {
         !songTitle.isEmpty
     }

@@ -48,8 +48,9 @@ final class NotchWindow: NSWindow {
         orderFront(nil)
     }
 
-    // Animation state. The island drapes straight down out of the notch on a
-    // cubic-bézier ease (no spring/overshoot) over a fixed, unhurried duration.
+    // Animation state. The island snaps between sizes on a damped spring, so it
+    // reads as a quick, springy "Q弹" pop with a touch of overshoot rather than
+    // a slow drape.
     private var animTimer: Timer?
     private var animStart = NSRect.zero
     private var animTarget = NSRect.zero
@@ -61,12 +62,14 @@ final class NotchWindow: NSWindow {
     /// than re-read from UserDefaults on every frame.
     private var animSpeed: Double = 1
 
-    /// The reveal duration, in seconds, at animation-speed 1. Kept deliberately
-    /// slow so the downward drape is easy to read.
-    private let animDuration: TimeInterval = 0.55
+    /// Spring "response" (roughly the settling period) in seconds. Small = snappy.
+    private let springResponse: TimeInterval = 0.34
+    /// Damping ratio. < 1 underdamps → a little overshoot/bounce (the Q弹 feel).
+    private let springDamping: Double = 0.62
 
-    /// Resizes/repositions the window to match the island's current mode. Only
-    /// the height/y animate (width/x are pinned), so it reads as a top-down drop.
+    /// Resizes/repositions the window to match the island's current mode.
+    /// Width/x and height/y all spring toward the target; expanding grows
+    /// symmetrically around the notch, collapsing snaps crisply back in.
     func animate(to mode: IslandMode) {
         if mode == .expanded {
             makeKeyAndOrderFront(nil)
@@ -85,43 +88,43 @@ final class NotchWindow: NSWindow {
         animFrameInterval = 1.0 / Double(max(fps, 30))
 
         animTimer?.invalidate()
-        // Step a bézier-eased frame toward the target at the display's cadence.
+        // Step the spring toward the target at the display's cadence.
         animTimer = Timer.scheduledTimer(withTimeInterval: animFrameInterval, repeats: true) { [weak self] _ in
             self?.stepAnimation()
         }
     }
 
-    /// Solves the standard cubic-bézier timing curve with control points
-    /// (0,0)-(x1,y1)-(x2,y2)-(1,1) for the eased output at fractional time `x`.
-    /// This is the same math CSS/CoreAnimation use for `cubic-bezier(...)`.
-    private func bezierEase(_ x: Double, _ x1: Double, _ y1: Double, _ x2: Double, _ y2: Double) -> Double {
-        // Bézier basis for a coordinate given control values c1, c2 (p0=0, p3=1).
-        func value(_ t: Double, _ c1: Double, _ c2: Double) -> Double {
-            let mt = 1 - t
-            return 3 * mt * mt * t * c1 + 3 * mt * t * t * c2 + t * t * t
+    /// Normalized position (0→1, with overshoot) of an underdamped spring at
+    /// time `t`, parameterized like SwiftUI's `.spring(response:dampingFraction:)`.
+    /// Returns the fraction of the way from start to target, plus whether the
+    /// spring has effectively settled.
+    private func springValue(_ t: Double) -> (value: CGFloat, settled: Bool) {
+        let zeta = springDamping
+        let omega0 = 2 * Double.pi / springResponse           // natural frequency
+        if zeta < 1 {
+            // Underdamped: decaying oscillation → gentle overshoot.
+            let omegaD = omega0 * (1 - zeta * zeta).squareRoot()  // damped frequency
+            let decay = exp(-zeta * omega0 * t)
+            let p = 1 - decay * (cos(omegaD * t) + (zeta * omega0 / omegaD) * sin(omegaD * t))
+            // Settled once the envelope has decayed to a hair.
+            let settled = decay < 0.01 && t > springResponse * 0.5
+            return (CGFloat(p), settled)
+        } else {
+            // Critically damped fallback: no overshoot.
+            let decay = exp(-omega0 * t)
+            let p = 1 - decay * (1 + omega0 * t)
+            return (CGFloat(p), decay < 0.01 && t > springResponse * 0.5)
         }
-        // Invert x(t) = x to find t, then evaluate y(t). Bisection is plenty here.
-        var lo = 0.0, hi = 1.0, t = x
-        for _ in 0..<24 {
-            let xt = value(t, x1, x2)
-            if abs(xt - x) < 1e-5 { break }
-            if xt < x { lo = t } else { hi = t }
-            t = (lo + hi) / 2
-        }
-        return value(t, y1, y2)
     }
 
     private func stepAnimation() {
         animElapsed += animFrameInterval * animSpeed
 
-        let fraction = min(animElapsed / animDuration, 1)
-        // Gentle iOS-style ease-in-out. Slow start, slow finish, no overshoot.
-        let eased = CGFloat(bezierEase(fraction, 0.33, 0.0, 0.15, 1.0))
+        let (eased, settled) = springValue(animElapsed)
 
         // Every frame stays centered on the notch (x = midX - w/2), so growing
         // the width expands symmetrically toward BOTH sides — the expanded bar
-        // wraps out around the notch evenly. Height eases at the same time so
-        // peek (unchanged width) reads as a straight-down drape.
+        // wraps out around the notch evenly. All edges spring together.
         let newFrame = NSRect(
             x: animStart.origin.x + (animTarget.origin.x - animStart.origin.x) * eased,
             y: animStart.origin.y + (animTarget.origin.y - animStart.origin.y) * eased,
@@ -130,7 +133,7 @@ final class NotchWindow: NSWindow {
         )
         setFrame(newFrame, display: true)
 
-        if fraction >= 1 {
+        if settled {
             setFrame(animTarget, display: true)
             animTimer?.invalidate()
             animTimer = nil
