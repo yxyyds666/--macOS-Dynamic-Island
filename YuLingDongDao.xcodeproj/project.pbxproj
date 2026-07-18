@@ -27,6 +27,7 @@
 		DAE3F33BBAC39ACABB50092E /* AppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = E6604B7B220649BC6A5CBC2F /* AppDelegate.swift */; };
 		E7515311368B9FC4F29A0E0C /* MediaService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0944AEA6CEDE783FEE6F5CA3 /* MediaService.swift */; };
 		EAFA3064683BEC6BD4F6560E /* AdapterMediaService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0132D125AD004D1895EBAA3E /* AdapterMediaService.swift */; };
+		FCF54FCA48C2690D39BC9D05 /* SystemAudio.swift in Sources */ = {isa = PBXBuildFile; fileRef = C22FD436BCF7549F9F07C8F9 /* SystemAudio.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -50,6 +51,7 @@
 		AC41E8103FB92F6E889B9159 /* YuLingDongDaoApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = YuLingDongDaoApp.swift; sourceTree = "<group>"; };
 		AD8E0C371A85447A6BE08E8E /* BUILD_INSTRUCTIONS.md */ = {isa = PBXFileReference; lastKnownFileType = net.daringfireball.markdown; path = BUILD_INSTRUCTIONS.md; sourceTree = "<group>"; };
 		B7A786ED4F8589C758FD220C /* NotchShape.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotchShape.swift; sourceTree = "<group>"; };
+		C22FD436BCF7549F9F07C8F9 /* SystemAudio.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SystemAudio.swift; sourceTree = "<group>"; };
 		E6604B7B220649BC6A5CBC2F /* AppDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppDelegate.swift; sourceTree = "<group>"; };
 		FC607784B681E9360680C4C5 /* YuLingDongDao.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = YuLingDongDao.app; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
@@ -89,6 +91,7 @@
 				0944AEA6CEDE783FEE6F5CA3 /* MediaService.swift */,
 				7185DBA75866B72374B9452F /* MediaServiceProtocol.swift */,
 				8F7800B3DDAB71F80BDE6571 /* NotchDetector.swift */,
+				C22FD436BCF7549F9F07C8F9 /* SystemAudio.swift */,
 			);
 			path = Services;
 			sourceTree = "<group>";
@@ -275,6 +278,7 @@
 				2A0A4456F8762D3B29FA682B /* NowPlayingInfo.swift in Sources */,
 				A0297E77A80C53C248EF0A83 /* SettingsManager.swift in Sources */,
 				4099AFD9CAEDF31B73BB2C48 /* SettingsView.swift in Sources */,
+				FCF54FCA48C2690D39BC9D05 /* SystemAudio.swift in Sources */,
 				866B07A0366FB44A78770DF0 /* YuLingDongDaoApp.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;

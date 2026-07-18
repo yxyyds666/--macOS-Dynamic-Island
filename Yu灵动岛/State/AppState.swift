@@ -8,15 +8,13 @@ final class AppState {
     var currentModule: NotchModule = .music
     
     // Interaction states, in increasing order of reveal:
-    //   isHovered  — mouse over the notch → a subtle bulge (hover)
-    //   isPeeking  — dwelled ~1s → music player drapes down (peek)
+    //   isHovered  — mouse over the notch (kept in sync with isPeeking)
+    //   isPeeking  — music player drapes down (peek); shown as soon as hovered
     //   isExpanded — clicked → wide bar wrapping around the notch (expanded)
     var isHovered: Bool = false
     var isPeeking: Bool = false
     var isExpanded: Bool = false
 
-    @ObservationIgnored private var dwellTimer: Timer?
-    
     // Music state
     var isPlaying: Bool = false
     var songTitle: String = ""
@@ -74,28 +72,16 @@ final class AppState {
         return .idle
     }
 
-    /// Mouse entered the notch: bulge immediately, and start the dwell timer
-    /// that promotes hover → peek after ~1s.
+    /// Mouse entered the notch: drape the music player straight down
+    /// immediately (no dwell), so the user can reach the volume slider right
+    /// away without waiting.
     func mouseEnteredNotch() {
         isHovered = true
-        dwellTimer?.invalidate()
-        dwellTimer = Timer.scheduledTimer(
-            withTimeInterval: AppConstants.peekDwellSeconds,
-            repeats: false
-        ) { [weak self] _ in
-            guard let self else { return }
-            // Only promote if still hovering and not already expanded.
-            if self.isHovered && !self.isExpanded {
-                self.isPeeking = true
-            }
-        }
+        isPeeking = true
     }
 
-    /// Mouse left the notch: cancel the dwell timer and collapse everything
-    /// back to idle.
+    /// Mouse left the notch: collapse everything back to idle.
     func mouseExitedNotch() {
-        dwellTimer?.invalidate()
-        dwellTimer = nil
         isHovered = false
         isPeeking = false
         isExpanded = false
@@ -103,24 +89,18 @@ final class AppState {
 
     /// A click anywhere on the island commits to the expanded layout.
     func expand() {
-        dwellTimer?.invalidate()
-        dwellTimer = nil
         isExpanded = true
     }
 
     /// A file drag arrived over the notch: pop straight open to the expanded
     /// layout so the file transfer panel is ready to receive the drop.
     func dragEnteredNotch() {
-        dwellTimer?.invalidate()
-        dwellTimer = nil
         isHovered = true
         isExpanded = true
     }
 
     /// The drag left without dropping: snap crisply back to idle.
     func dragExitedNotch() {
-        dwellTimer?.invalidate()
-        dwellTimer = nil
         isHovered = false
         isPeeking = false
         isExpanded = false
@@ -191,6 +171,14 @@ final class AppState {
     func setVolume(_ newValue: Float) {
         volume = newValue
         mediaService?.setVolume(newValue)
+    }
+
+    /// Syncs the slider to the actual system output volume so it starts at the
+    /// right position rather than a hardcoded default.
+    func syncVolumeFromSystem() {
+        if let system = SystemAudio.currentVolume() {
+            volume = system
+        }
     }
 
     /// Smoothly advances `currentTime` between the 1s now-playing polls so the

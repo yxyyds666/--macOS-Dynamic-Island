@@ -31,6 +31,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         state.mediaService = media
         media.startListening()
         state.startProgressTimer()
+        // Reflect the real system output volume on the slider at launch.
+        state.syncVolumeFromSystem()
 
         // Bind media to state
         setupMediaBindings(media, state: state)

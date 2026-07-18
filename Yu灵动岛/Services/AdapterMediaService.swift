@@ -178,8 +178,10 @@ final class AdapterMediaService: MediaServiceProtocol, @unchecked Sendable {
         runAdapter(["seek", "\(micros)"])
     }
 
-    /// The adapter has no volume command; system volume isn't controlled here.
-    func setVolume(_ volume: Float) {}
+    /// The adapter has no volume command, so drive the system output volume.
+    func setVolume(_ volume: Float) {
+        SystemAudio.setVolume(volume)
+    }
 
     private func runAdapter(_ args: [String]) {
         guard isAvailable, let scriptPath, let frameworkPath else { return }

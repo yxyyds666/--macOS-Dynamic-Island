@@ -32,8 +32,6 @@ enum AppConstants {
     static let expandPanelCornerRadius: CGFloat = 24
     // Rounded inner corners of the notch cutout in the expanded bar.
     static let notchCutoutCornerRadius: CGFloat = 10
-    // Time the mouse must dwell over the notch before the peek appears.
-    static let peekDwellSeconds: TimeInterval = 1.0
 
     // File transfer limits
     static let maxFileItems = 10
