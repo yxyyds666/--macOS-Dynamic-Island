@@ -141,6 +141,13 @@ final class NotchWindow: NSWindow {
     }
 }
 
+/// An NSHostingView that delivers the first click even when the window isn't
+/// key, so a tap on the island advances the reveal immediately rather than just
+/// activating the window.
+private final class FirstMouseHostingView<Content: View>: NSHostingView<Content> {
+    override func acceptsFirstMouse(for event: NSEvent?) -> Bool { true }
+}
+
 /// Hosts the SwiftUI island and owns the tracking area that drives hover state.
 /// Using an explicit tracking area (rather than SwiftUI `.onHover`) makes the
 /// enter/exit reliable as the window resizes.
@@ -152,7 +159,7 @@ private final class IslandContainerView: NSView {
         self.appState = appState
         super.init(frame: .zero)
 
-        let hosting = NSHostingView(rootView: IslandView(appState: appState))
+        let hosting = FirstMouseHostingView(rootView: IslandView(appState: appState))
         hosting.translatesAutoresizingMaskIntoConstraints = false
         addSubview(hosting)
         NSLayoutConstraint.activate([

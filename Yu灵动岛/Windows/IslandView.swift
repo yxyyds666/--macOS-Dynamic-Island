@@ -60,8 +60,8 @@ struct IslandView: View {
         .clipShape(clip)
         .contentShape(clip)
         .onTapGesture {
-            // Any state → click commits to the full wrap-around layout.
-            if mode != .expanded { appState.expand() }
+            // Click steps the reveal: idle/hover → peek → expanded.
+            if mode != .expanded { appState.advanceReveal() }
         }
         .animation(.easeInOut(duration: 0.18), value: mode)
     }
@@ -86,7 +86,7 @@ struct IslandView: View {
                 // Left wing fills the space left of the notch.
                 Group {
                     if appState.showMusicModule {
-                        MusicPanel(appState: appState)
+                        MusicPanel(appState: appState, showVolume: true)
                             .padding(.horizontal, 12)
                     }
                 }

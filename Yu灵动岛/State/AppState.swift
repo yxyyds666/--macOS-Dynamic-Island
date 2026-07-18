@@ -72,12 +72,10 @@ final class AppState {
         return .idle
     }
 
-    /// Mouse entered the notch: drape the music player straight down
-    /// immediately (no dwell), so the user can reach the volume slider right
-    /// away without waiting.
+    /// Mouse entered the notch: just a subtle bulge, no content yet. Content is
+    /// revealed by clicking (hover → peek → expanded).
     func mouseEnteredNotch() {
         isHovered = true
-        isPeeking = true
     }
 
     /// Mouse left the notch: collapse everything back to idle.
@@ -87,9 +85,14 @@ final class AppState {
         isExpanded = false
     }
 
-    /// A click anywhere on the island commits to the expanded layout.
-    func expand() {
-        isExpanded = true
+    /// A click advances the reveal one step: hover/idle → peek (music panel
+    /// drapes down), then peek → expanded (full wrap-around layout).
+    func advanceReveal() {
+        if !isPeeking {
+            isPeeking = true
+        } else if !isExpanded {
+            isExpanded = true
+        }
     }
 
     /// A file drag arrived over the notch: pop straight open to the expanded

@@ -5,6 +5,9 @@ import UniformTypeIdentifiers
 
 struct MusicPanel: View {
     @Bindable var appState: AppState
+    /// The volume slider only shows in the full expanded layout; the peek drape
+    /// hides it to stay compact.
+    var showVolume: Bool = false
     @State private var isScrubbing = false
     @State private var scrubTime: TimeInterval = 0
 
@@ -74,12 +77,14 @@ struct MusicPanel: View {
                 Spacer(minLength: 0)
             }
 
-            // Volume
-            HStack(spacing: 10) {
-                Image(systemName: "speaker.fill").font(.system(size: 10)).foregroundStyle(.white.opacity(0.5))
-                Slider(value: Binding(get: { Double(appState.volume) }, set: { appState.setVolume(Float($0)) }), in: 0...1)
-                    .tint(.white)
-                Image(systemName: "speaker.wave.3.fill").font(.system(size: 10)).foregroundStyle(.white.opacity(0.5))
+            // Volume — only in the full expanded layout.
+            if showVolume {
+                HStack(spacing: 10) {
+                    Image(systemName: "speaker.fill").font(.system(size: 10)).foregroundStyle(.white.opacity(0.5))
+                    Slider(value: Binding(get: { Double(appState.volume) }, set: { appState.setVolume(Float($0)) }), in: 0...1)
+                        .tint(.white)
+                    Image(systemName: "speaker.wave.3.fill").font(.system(size: 10)).foregroundStyle(.white.opacity(0.5))
+                }
             }
 
             Spacer(minLength: 0)
