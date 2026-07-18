@@ -16,9 +16,9 @@ enum AppConstants {
     static let islandHoverHeight: CGFloat = 52
 
     // Peek state: clicked once and the music player drapes straight down.
-    // Kept narrow so the "chin" is slim; content still fits comfortably.
-    static let islandPeekWidth: CGFloat = 260
-    static let islandPeekHeight: CGFloat = 250
+    // A shallow "chin" — short vertically so it doesn't drop down far.
+    static let islandPeekWidth: CGFloat = 300
+    static let islandPeekHeight: CGFloat = 200
     static let islandCornerRadius: CGFloat = 24
 
     // Concave top-corner radius that makes the shape hug the notch shoulders.
