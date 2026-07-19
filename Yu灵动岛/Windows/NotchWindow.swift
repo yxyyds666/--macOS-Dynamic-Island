@@ -90,7 +90,9 @@ final class NotchWindow: NSWindow {
         animTimer?.invalidate()
         // Step the spring toward the target at the display's cadence.
         animTimer = Timer.scheduledTimer(withTimeInterval: animFrameInterval, repeats: true) { [weak self] _ in
-            self?.stepAnimation()
+            Task { @MainActor [weak self] in
+                self?.stepAnimation()
+            }
         }
     }
 

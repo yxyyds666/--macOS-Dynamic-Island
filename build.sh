@@ -22,17 +22,10 @@ rm -rf dist
 mkdir -p dist
 cp -R "$APP" dist/
 
-echo "==> Bundling MediaRemote adapter (perl script + helper framework)"
-# The now-playing data on macOS 15.4+ is only reachable through a system binary
-# that carries the MediaRemote entitlement. We ship the perl adapter + helper
-# framework and invoke them via /usr/bin/perl at runtime.
-ADAPTER_SRC="Yu灵动岛/Resources/MediaRemoteAdapter"
+echo "==> Checking bundled MediaRemote adapter"
 ADAPTER_DST="dist/Yu灵动岛.app/Contents/Resources/MediaRemoteAdapter"
-mkdir -p "$ADAPTER_DST"
-cp "$ADAPTER_SRC/mediaremote-adapter.pl" "$ADAPTER_DST/"
-cp -R "$ADAPTER_SRC/MediaRemoteAdapter.framework" "$ADAPTER_DST/"
-# Re-apply the ad-hoc signature the perl DynaLoader requires.
-codesign --force --deep --sign - "$ADAPTER_DST/MediaRemoteAdapter.framework"
+test -f "$ADAPTER_DST/mediaremote-adapter.pl"
+test -d "$ADAPTER_DST/MediaRemoteAdapter.framework"
 
 echo "==> Ad-hoc signing (enables dlopen of private MediaRemote framework)"
 codesign --force --deep \

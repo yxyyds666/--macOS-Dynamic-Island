@@ -9,13 +9,15 @@
 /* Begin PBXBuildFile section */
 		0493775E4B418D80B05CB293 /* NotchShape.swift in Sources */ = {isa = PBXBuildFile; fileRef = B7A786ED4F8589C758FD220C /* NotchShape.swift */; };
 		056FD32AC13251CA0538CE2E /* MenuBarManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 58072E10A8BDE3636D55CEB5 /* MenuBarManager.swift */; };
+		083E6DB878E080E29C75ECE4 /* LyricsService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 72ECBDE3B794FA0746ED3BF5 /* LyricsService.swift */; };
 		2A0A4456F8762D3B29FA682B /* NowPlayingInfo.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7FB02995432C99BD4EE5FC8B /* NowPlayingInfo.swift */; };
 		4099AFD9CAEDF31B73BB2C48 /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 62A07067F7DBEC128ED7FD70 /* SettingsView.swift */; };
 		414472F25B3039DDF2C54670 /* Constants.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0F6719AA3B4B53CC492AB5D1 /* Constants.swift */; };
+		447706B02A8CA1229D0B5E72 /* LyricLine.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7A7C378F4067BBD1A97D665C /* LyricLine.swift */; };
+		479A4E01FB2BF515213B036F /* PlaybackBars.swift in Sources */ = {isa = PBXBuildFile; fileRef = 03938695D4AE5A84B3A2C891 /* PlaybackBars.swift */; };
 		48937FAC637548F0C585C61F /* DragDropService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3AB0923DA35099F83B584C34 /* DragDropService.swift */; };
 		4BF74AC3D0CEF7CC2FDE2CFE /* FileItem.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9E4E85B407A96BE0CF6E51A4 /* FileItem.swift */; };
 		5D676C648B513E06E1B7EBF1 /* IslandView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 527B421EBC590274035F0A53 /* IslandView.swift */; };
-		64E6AF20C7A34057A649AE53 /* BUILD_INSTRUCTIONS.md in Resources */ = {isa = PBXBuildFile; fileRef = AD8E0C371A85447A6BE08E8E /* BUILD_INSTRUCTIONS.md */; };
 		6E07CE18329592000186C480 /* AppState.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A4A1D306A516AB34D218817 /* AppState.swift */; };
 		866B07A0366FB44A78770DF0 /* YuLingDongDaoApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC41E8103FB92F6E889B9159 /* YuLingDongDaoApp.swift */; };
 		90AAE9DC65698AECD8E04BA1 /* NotchDetector.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8F7800B3DDAB71F80BDE6571 /* NotchDetector.swift */; };
@@ -25,31 +27,32 @@
 		D110E82251E7113A1E3BF136 /* IslandPanels.swift in Sources */ = {isa = PBXBuildFile; fileRef = 438C12786411D743AF62C0BF /* IslandPanels.swift */; };
 		D62DA7902C3CC624FE407ECB /* NotchWindow.swift in Sources */ = {isa = PBXBuildFile; fileRef = 861069341C9D750FD215BEE7 /* NotchWindow.swift */; };
 		DAE3F33BBAC39ACABB50092E /* AppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = E6604B7B220649BC6A5CBC2F /* AppDelegate.swift */; };
-		E7515311368B9FC4F29A0E0C /* MediaService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0944AEA6CEDE783FEE6F5CA3 /* MediaService.swift */; };
+		DFFD79D362C03BA23078F078 /* CollapsedPlaybackActivity.swift in Sources */ = {isa = PBXBuildFile; fileRef = 54874BE388E23E952CD888D8 /* CollapsedPlaybackActivity.swift */; };
 		EAFA3064683BEC6BD4F6560E /* AdapterMediaService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0132D125AD004D1895EBAA3E /* AdapterMediaService.swift */; };
 		FCF54FCA48C2690D39BC9D05 /* SystemAudio.swift in Sources */ = {isa = PBXBuildFile; fileRef = C22FD436BCF7549F9F07C8F9 /* SystemAudio.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
 		0132D125AD004D1895EBAA3E /* AdapterMediaService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AdapterMediaService.swift; sourceTree = "<group>"; };
-		0944AEA6CEDE783FEE6F5CA3 /* MediaService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MediaService.swift; sourceTree = "<group>"; };
+		03938695D4AE5A84B3A2C891 /* PlaybackBars.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlaybackBars.swift; sourceTree = "<group>"; };
 		0F6719AA3B4B53CC492AB5D1 /* Constants.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Constants.swift; sourceTree = "<group>"; };
 		318B092A4D7249DBC11175FA /* Extensions.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Extensions.swift; sourceTree = "<group>"; };
 		3AB0923DA35099F83B584C34 /* DragDropService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DragDropService.swift; sourceTree = "<group>"; };
 		438C12786411D743AF62C0BF /* IslandPanels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IslandPanels.swift; sourceTree = "<group>"; };
-		4F7437457725D9C26B9C7C01 /* MediaRemoteBridge.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = MediaRemoteBridge.h; sourceTree = "<group>"; };
 		527B421EBC590274035F0A53 /* IslandView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IslandView.swift; sourceTree = "<group>"; };
+		54874BE388E23E952CD888D8 /* CollapsedPlaybackActivity.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CollapsedPlaybackActivity.swift; sourceTree = "<group>"; };
 		5700767A93280B32BF7BB895 /* SettingsManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsManager.swift; sourceTree = "<group>"; };
 		58072E10A8BDE3636D55CEB5 /* MenuBarManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MenuBarManager.swift; sourceTree = "<group>"; };
 		5A4A1D306A516AB34D218817 /* AppState.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppState.swift; sourceTree = "<group>"; };
 		62A07067F7DBEC128ED7FD70 /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsView.swift; sourceTree = "<group>"; };
 		7185DBA75866B72374B9452F /* MediaServiceProtocol.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MediaServiceProtocol.swift; sourceTree = "<group>"; };
+		72ECBDE3B794FA0746ED3BF5 /* LyricsService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LyricsService.swift; sourceTree = "<group>"; };
+		7A7C378F4067BBD1A97D665C /* LyricLine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LyricLine.swift; sourceTree = "<group>"; };
 		7FB02995432C99BD4EE5FC8B /* NowPlayingInfo.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NowPlayingInfo.swift; sourceTree = "<group>"; };
 		861069341C9D750FD215BEE7 /* NotchWindow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotchWindow.swift; sourceTree = "<group>"; };
 		8F7800B3DDAB71F80BDE6571 /* NotchDetector.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotchDetector.swift; sourceTree = "<group>"; };
 		9E4E85B407A96BE0CF6E51A4 /* FileItem.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FileItem.swift; sourceTree = "<group>"; };
 		AC41E8103FB92F6E889B9159 /* YuLingDongDaoApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = YuLingDongDaoApp.swift; sourceTree = "<group>"; };
-		AD8E0C371A85447A6BE08E8E /* BUILD_INSTRUCTIONS.md */ = {isa = PBXFileReference; lastKnownFileType = net.daringfireball.markdown; path = BUILD_INSTRUCTIONS.md; sourceTree = "<group>"; };
 		B7A786ED4F8589C758FD220C /* NotchShape.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotchShape.swift; sourceTree = "<group>"; };
 		C22FD436BCF7549F9F07C8F9 /* SystemAudio.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SystemAudio.swift; sourceTree = "<group>"; };
 		E6604B7B220649BC6A5CBC2F /* AppDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppDelegate.swift; sourceTree = "<group>"; };
@@ -87,8 +90,7 @@
 			children = (
 				0132D125AD004D1895EBAA3E /* AdapterMediaService.swift */,
 				3AB0923DA35099F83B584C34 /* DragDropService.swift */,
-				4F7437457725D9C26B9C7C01 /* MediaRemoteBridge.h */,
-				0944AEA6CEDE783FEE6F5CA3 /* MediaService.swift */,
+				72ECBDE3B794FA0746ED3BF5 /* LyricsService.swift */,
 				7185DBA75866B72374B9452F /* MediaServiceProtocol.swift */,
 				8F7800B3DDAB71F80BDE6571 /* NotchDetector.swift */,
 				C22FD436BCF7549F9F07C8F9 /* SystemAudio.swift */,
@@ -124,6 +126,7 @@
 		62965AC50A5B84296AAE4BC2 /* Music */ = {
 			isa = PBXGroup;
 			children = (
+				7A7C378F4067BBD1A97D665C /* LyricLine.swift */,
 				7FB02995432C99BD4EE5FC8B /* NowPlayingInfo.swift */,
 			);
 			path = Music;
@@ -132,7 +135,6 @@
 		752CCF615AF83184BFEADBD9 /* Yu灵动岛 */ = {
 			isa = PBXGroup;
 			children = (
-				AD8E0C371A85447A6BE08E8E /* BUILD_INSTRUCTIONS.md */,
 				E6EE407542ED0EB762174EFD /* App */,
 				609FD83F607A767AB195AB18 /* MenuBar */,
 				0233D6241D3E94FEE2B3BD42 /* Modules */,
@@ -149,10 +151,12 @@
 		983C9C2A8E1854304CA4287E /* Windows */ = {
 			isa = PBXGroup;
 			children = (
+				54874BE388E23E952CD888D8 /* CollapsedPlaybackActivity.swift */,
 				438C12786411D743AF62C0BF /* IslandPanels.swift */,
 				527B421EBC590274035F0A53 /* IslandView.swift */,
 				B7A786ED4F8589C758FD220C /* NotchShape.swift */,
 				861069341C9D750FD215BEE7 /* NotchWindow.swift */,
+				03938695D4AE5A84B3A2C891 /* PlaybackBars.swift */,
 			);
 			path = Windows;
 			sourceTree = "<group>";
@@ -197,8 +201,8 @@
 			isa = PBXNativeTarget;
 			buildConfigurationList = FB722C84EDC096DE8C0CE48C /* Build configuration list for PBXNativeTarget "YuLingDongDao" */;
 			buildPhases = (
+				68A07933C4D22758E99FB078 /* Bundle MediaRemote adapter */,
 				1334801D3984EE1A83190886 /* Sources */,
-				541453F36C0B42C9EB1D8760 /* Resources */,
 			);
 			buildRules = (
 			);
@@ -244,16 +248,27 @@
 		};
 /* End PBXProject section */
 
-/* Begin PBXResourcesBuildPhase section */
-		541453F36C0B42C9EB1D8760 /* Resources */ = {
-			isa = PBXResourcesBuildPhase;
+/* Begin PBXShellScriptBuildPhase section */
+		68A07933C4D22758E99FB078 /* Bundle MediaRemote adapter */ = {
+			isa = PBXShellScriptBuildPhase;
+			alwaysOutOfDate = 1;
 			buildActionMask = 2147483647;
 			files = (
-				64E6AF20C7A34057A649AE53 /* BUILD_INSTRUCTIONS.md in Resources */,
+			);
+			inputFileListPaths = (
+			);
+			inputPaths = (
+			);
+			name = "Bundle MediaRemote adapter";
+			outputFileListPaths = (
+			);
+			outputPaths = (
 			);
 			runOnlyForDeploymentPostprocessing = 0;
+			shellPath = /bin/sh;
+			shellScript = "set -euo pipefail\nadapter_src=\"${SRCROOT}/Yu灵动岛/Resources/MediaRemoteAdapter\"\nadapter_dst=\"${TARGET_BUILD_DIR}/${UNLOCALIZED_RESOURCES_FOLDER_PATH}/MediaRemoteAdapter\"\nrm -rf \"${adapter_dst}\"\nmkdir -p \"${adapter_dst}\"\nditto \"${adapter_src}/\" \"${adapter_dst}/\"\ncodesign --force --deep --sign - \"${adapter_dst}/MediaRemoteAdapter.framework\"\n";
 		};
-/* End PBXResourcesBuildPhase section */
+/* End PBXShellScriptBuildPhase section */
 
 /* Begin PBXSourcesBuildPhase section */
 		1334801D3984EE1A83190886 /* Sources */ = {
@@ -263,19 +278,22 @@
 				EAFA3064683BEC6BD4F6560E /* AdapterMediaService.swift in Sources */,
 				DAE3F33BBAC39ACABB50092E /* AppDelegate.swift in Sources */,
 				6E07CE18329592000186C480 /* AppState.swift in Sources */,
+				DFFD79D362C03BA23078F078 /* CollapsedPlaybackActivity.swift in Sources */,
 				414472F25B3039DDF2C54670 /* Constants.swift in Sources */,
 				48937FAC637548F0C585C61F /* DragDropService.swift in Sources */,
 				B8510D27D5FBCAF5CBA4A1A7 /* Extensions.swift in Sources */,
 				4BF74AC3D0CEF7CC2FDE2CFE /* FileItem.swift in Sources */,
 				D110E82251E7113A1E3BF136 /* IslandPanels.swift in Sources */,
 				5D676C648B513E06E1B7EBF1 /* IslandView.swift in Sources */,
-				E7515311368B9FC4F29A0E0C /* MediaService.swift in Sources */,
+				447706B02A8CA1229D0B5E72 /* LyricLine.swift in Sources */,
+				083E6DB878E080E29C75ECE4 /* LyricsService.swift in Sources */,
 				C94F43F9E9A29555F4386453 /* MediaServiceProtocol.swift in Sources */,
 				056FD32AC13251CA0538CE2E /* MenuBarManager.swift in Sources */,
 				90AAE9DC65698AECD8E04BA1 /* NotchDetector.swift in Sources */,
 				0493775E4B418D80B05CB293 /* NotchShape.swift in Sources */,
 				D62DA7902C3CC624FE407ECB /* NotchWindow.swift in Sources */,
 				2A0A4456F8762D3B29FA682B /* NowPlayingInfo.swift in Sources */,
+				479A4E01FB2BF515213B036F /* PlaybackBars.swift in Sources */,
 				A0297E77A80C53C248EF0A83 /* SettingsManager.swift in Sources */,
 				4099AFD9CAEDF31B73BB2C48 /* SettingsView.swift in Sources */,
 				FCF54FCA48C2690D39BC9D05 /* SystemAudio.swift in Sources */,

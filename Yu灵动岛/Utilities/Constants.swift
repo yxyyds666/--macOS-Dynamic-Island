@@ -1,5 +1,9 @@
 import Foundation
 
+extension Notification.Name {
+    static let lyricsRetryRequested = Notification.Name("com.yuxi.yulingdongdao.lyricsRetryRequested")
+}
+
 enum AppConstants {
     static let appName = "Yu灵动岛"
     static let bundleIdentifier = "com.yuxi.yulingdongdao"
@@ -11,6 +15,12 @@ enum AppConstants {
     static let notchHeight: CGFloat = 38
     static let notchCornerRadius: CGFloat = 18
 
+    // Collapsed playback state: narrow wings animate beside the physical notch
+    // without growing downward into the peek panel.
+    static let islandPlayingWingWidth: CGFloat = 44
+    static var islandPlayingWidth: CGFloat { notchWidth + 2 * islandPlayingWingWidth }
+    static let islandPlayingHeight: CGFloat = notchHeight
+
     // Hover state: a subtle bulge around the notch (visual only, no content).
     static let islandHoverWidth: CGFloat = 300
     static let islandHoverHeight: CGFloat = 52
@@ -20,6 +30,16 @@ enum AppConstants {
     static let islandPeekWidth: CGFloat = 300
     static let islandPeekHeight: CGFloat = 200
     static let islandCornerRadius: CGFloat = 24
+
+    // Activity state: a horizontal live-activity capsule wrapping AROUND the
+    // notch — album art in the left wing, lyrics or track info in the right
+    // wing, the physical notch showing through the middle. Shown on hover while
+    // playing (lyrics) or briefly on a track change (info).
+    static let islandActivityWingWidth: CGFloat = 172
+    static var islandActivityWidth: CGFloat { notchWidth + 2 * islandActivityWingWidth }
+    static let islandActivityHeight: CGFloat = 56
+    // How long the auto-popped track-change capsule lingers before collapsing.
+    static let activityAutoDismissSeconds: TimeInterval = 3
 
     // Concave top-corner radius that makes the shape hug the notch shoulders.
     static let islandTopCornerRadius: CGFloat = 12
@@ -58,7 +78,9 @@ enum AppConstants {
 ///                files right, the physical notch showing through the middle)
 enum IslandMode {
     case idle
+    case playing
     case hover
+    case activity
     case peek
     case expanded
 
@@ -66,8 +88,12 @@ enum IslandMode {
         switch self {
         case .idle:
             return CGSize(width: AppConstants.notchWidth, height: AppConstants.notchHeight)
+        case .playing:
+            return CGSize(width: AppConstants.islandPlayingWidth, height: AppConstants.islandPlayingHeight)
         case .hover:
             return CGSize(width: AppConstants.islandHoverWidth, height: AppConstants.islandHoverHeight)
+        case .activity:
+            return CGSize(width: AppConstants.islandActivityWidth, height: AppConstants.islandActivityHeight)
         case .peek:
             return CGSize(width: AppConstants.islandPeekWidth, height: AppConstants.islandPeekHeight)
         case .expanded:
@@ -78,7 +104,9 @@ enum IslandMode {
     var cornerRadius: CGFloat {
         switch self {
         case .idle: return AppConstants.notchCornerRadius
+        case .playing: return AppConstants.notchCornerRadius
         case .hover: return AppConstants.islandCornerRadius
+        case .activity: return AppConstants.islandCornerRadius
         case .peek: return AppConstants.islandCornerRadius
         case .expanded: return AppConstants.expandPanelCornerRadius
         }

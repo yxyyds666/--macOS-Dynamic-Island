@@ -58,6 +58,14 @@ final class SettingsManager: @unchecked Sendable {
         set { defaults.set(newValue, forKey: AppConstants.DefaultsKeys.animationSpeed) }
     }
 
+    var enabledModules: [NotchModule] {
+        normalizeModuleSettings()
+        var modules: [NotchModule] = []
+        if showMusicModule { modules.append(.music) }
+        if showFileModule { modules.append(.file) }
+        return modules
+    }
+
     func registerDefaults() {
         defaults.register(defaults: [
             AppConstants.DefaultsKeys.showMusicModule: true,
@@ -65,5 +73,26 @@ final class SettingsManager: @unchecked Sendable {
             AppConstants.DefaultsKeys.defaultModule: "music",
             AppConstants.DefaultsKeys.animationSpeed: 1.0
         ])
+        normalizeModuleSettings()
+    }
+
+    /// Keeps module preferences coherent: at least one module is enabled, and the
+    /// default module always points at an enabled module.
+    func normalizeModuleSettings() {
+        if !showMusicModule && !showFileModule {
+            showMusicModule = true
+        }
+
+        let modules = rawEnabledModules
+        if !modules.contains(defaultModule), let fallback = modules.first {
+            defaultModule = fallback
+        }
+    }
+
+    private var rawEnabledModules: [NotchModule] {
+        var modules: [NotchModule] = []
+        if showMusicModule { modules.append(.music) }
+        if showFileModule { modules.append(.file) }
+        return modules
     }
 }

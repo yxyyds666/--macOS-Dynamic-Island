@@ -9,15 +9,19 @@ struct FileItem: Identifiable {
     let size: Int64
     
     var formattedSize: String {
-        ByteCountFormatter.string(fromByteCount: size, countStyle: .file)
+        if isDirectory { return "文件夹" }
+        return ByteCountFormatter.string(fromByteCount: size, countStyle: .file)
+    }
+
+    var isDirectory: Bool {
+        (try? url.resourceValues(forKeys: [.isDirectoryKey]).isDirectory) == true
     }
     
     init(url: URL) {
         self.url = url
         self.name = url.lastPathComponent
         
-        let icon = NSWorkspace.shared.icon(forFileType: url.pathExtension)
-        self.icon = icon
+        self.icon = NSWorkspace.shared.icon(forFile: url.path)
         
         let resourceValues = try? url.resourceValues(forKeys: [.fileSizeKey])
         self.size = Int64(resourceValues?.fileSize ?? 0)

@@ -1,5 +1,6 @@
 import AppKit
 
+@MainActor
 final class MenuBarManager: NSObject, NSMenuDelegate {
     private var statusItem: NSStatusItem?
     private let appState: AppState
@@ -46,16 +47,17 @@ final class MenuBarManager: NSObject, NSMenuDelegate {
             menu.addItem(.separator())
         }
 
-        // Module shortcuts
-        let musicItem = NSMenuItem(title: "音乐控制", action: #selector(switchToMusic), keyEquivalent: "1")
-        musicItem.target = self
-        musicItem.state = appState.currentModule == .music ? .on : .off
-        menu.addItem(musicItem)
-
-        let fileItem = NSMenuItem(title: "文件中转站", action: #selector(switchToFile), keyEquivalent: "2")
-        fileItem.target = self
-        fileItem.state = appState.currentModule == .file ? .on : .off
-        menu.addItem(fileItem)
+        // Module shortcuts — only show enabled modules.
+        for module in appState.availableModules {
+            let item = NSMenuItem(
+                title: module.displayName,
+                action: selector(for: module),
+                keyEquivalent: keyEquivalent(for: module)
+            )
+            item.target = self
+            item.state = appState.currentModule == module ? .on : .off
+            menu.addItem(item)
+        }
 
         menu.addItem(.separator())
 
@@ -77,14 +79,28 @@ final class MenuBarManager: NSObject, NSMenuDelegate {
         menu.addItem(quitItem)
     }
 
+    private func selector(for module: NotchModule) -> Selector {
+        switch module {
+        case .music: return #selector(switchToMusic)
+        case .file: return #selector(switchToFile)
+        }
+    }
+
+    private func keyEquivalent(for module: NotchModule) -> String {
+        switch module {
+        case .music: return "1"
+        case .file: return "2"
+        }
+    }
+
     // MARK: - Actions
 
     @objc private func switchToMusic() {
-        appState.currentModule = .music
+        appState.selectModule(.music, reveal: true)
     }
 
     @objc private func switchToFile() {
-        appState.currentModule = .file
+        appState.selectModule(.file, reveal: true)
     }
 
     @objc private func openSettings() {

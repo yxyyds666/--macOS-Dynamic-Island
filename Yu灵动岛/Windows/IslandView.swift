@@ -1,19 +1,11 @@
 import SwiftUI
 
-/// The island's SwiftUI content. Four states:
-///   • idle     — black pill blended into the notch
-///   • hover    — a subtle bulge around the notch (no content)
-///   • peek      — music player drapes straight down out of the notch
-///   • expanded — a wide bar wrapping AROUND the notch: music in the left wing,
-///                files in the right wing, the physical notch showing through
-///                a cutout in the middle. iOS-styled.
-/// The window owns the size/animation; this view just fills it.
+/// The island's SwiftUI content. The window owns size/animation; this view fills
+/// it and switches content according to the current reveal/focus state.
 struct IslandView: View {
     @Bindable var appState: AppState
 
     private var mode: IslandMode { appState.islandMode }
-
-    /// Real notch dimensions, used to size the expanded cutout.
     private var notchWidth: CGFloat { NSScreen.main?.notchWidth ?? AppConstants.notchWidth }
     private var notchHeight: CGFloat { NSScreen.main?.notchHeight ?? AppConstants.notchHeight }
 
@@ -23,17 +15,17 @@ struct IslandView: View {
 
     private var bottomCornerRadius: CGFloat {
         switch mode {
-        case .idle: return AppConstants.notchCornerRadius
-        case .hover, .peek: return AppConstants.islandCornerRadius
+        case .idle, .playing: return AppConstants.notchCornerRadius
+        case .hover, .peek, .activity: return AppConstants.islandCornerRadius
         case .expanded: return AppConstants.expandPanelCornerRadius
         }
     }
 
-    /// The shape for the current mode. Expanded wraps around the notch; every
-    /// other mode is the single notch-hugging pill/drape.
+    private var wrapsAroundNotch: Bool { mode == .expanded || mode == .activity || mode == .playing }
+
     @ViewBuilder
     private func background(_ fill: some ShapeStyle) -> some View {
-        if mode == .expanded {
+        if wrapsAroundNotch {
             ExpandedNotchShape(notchCutoutWidth: notchWidth, notchCutoutHeight: notchHeight)
                 .fill(fill)
         } else {
@@ -43,11 +35,10 @@ struct IslandView: View {
     }
 
     private var clip: AnyShape {
-        if mode == .expanded {
+        if wrapsAroundNotch {
             return AnyShape(ExpandedNotchShape(notchCutoutWidth: notchWidth, notchCutoutHeight: notchHeight))
-        } else {
-            return AnyShape(NotchShape(topCornerRadius: topCornerRadius, bottomCornerRadius: bottomCornerRadius))
         }
+        return AnyShape(NotchShape(topCornerRadius: topCornerRadius, bottomCornerRadius: bottomCornerRadius))
     }
 
     var body: some View {
@@ -56,11 +47,9 @@ struct IslandView: View {
             content
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
-        // Clip to the shape so content stays within the island / cutout.
         .clipShape(clip)
         .contentShape(clip)
         .onTapGesture {
-            // Click steps the reveal: idle/hover → peek → expanded.
             if mode != .expanded { appState.advanceReveal() }
         }
         .animation(.easeInOut(duration: 0.18), value: mode)
@@ -70,41 +59,81 @@ struct IslandView: View {
     private var content: some View {
         switch mode {
         case .idle, .hover:
-            // Idle and the hover bulge show no content.
             EmptyView()
+        case .playing:
+            CollapsedPlaybackActivity(appState: appState, notchWidth: notchWidth)
+                .transition(.opacity)
+        case .activity:
+            ActivityCapsule(appState: appState, notchWidth: notchWidth, notchHeight: notchHeight)
+                .transition(.opacity)
         case .peek:
-            // Dwell reveals the music player, draping down out of the notch.
-            MusicPanel(appState: appState)
-                .padding(.top, notchHeight - 8)
-                .padding(.horizontal, 20)
-                .padding(.bottom, 20)
-                .transition(.move(edge: .top).combined(with: .opacity))
+            peekContent
         case .expanded:
-            // Music in the left wing, files in the right wing, with the notch
-            // cutout kept clear between them.
+            expandedContent
+        }
+    }
+
+    @ViewBuilder
+    private var peekContent: some View {
+        Group {
+            switch appState.currentModule {
+            case .music:
+                MusicPanel(appState: appState)
+            case .file:
+                FilePanel(appState: appState, compact: true, focused: true)
+            }
+        }
+        .padding(.top, notchHeight - 8)
+        .padding(.horizontal, 20)
+        .padding(.bottom, 20)
+        .transition(.move(edge: .top).combined(with: .opacity))
+    }
+
+    private var expandedContent: some View {
+        ZStack(alignment: .topTrailing) {
             HStack(spacing: 0) {
-                // Left wing fills the space left of the notch.
                 Group {
                     if appState.showMusicModule {
-                        MusicPanel(appState: appState, showVolume: true)
-                            .padding(.horizontal, 12)
+                        MusicPanel(
+                            appState: appState,
+                            showVolume: true,
+                            focused: appState.currentModule == .music
+                        )
+                        .padding(.horizontal, 12)
                     }
                 }
                 .frame(maxWidth: .infinity)
-                // Keep the physical notch clear between the wings.
+
                 Color.clear.frame(width: notchWidth)
-                // Right wing fills the space right of the notch.
+
                 Group {
                     if appState.showFileModule {
-                        FilePanel(appState: appState)
-                            .padding(.horizontal, 12)
+                        FilePanel(
+                            appState: appState,
+                            compact: false,
+                            focused: appState.currentModule == .file
+                        )
+                        .padding(.horizontal, 12)
                     }
                 }
                 .frame(maxWidth: .infinity)
             }
             .padding(.top, notchHeight + 8)
             .padding(.bottom, 20)
-            .transition(.move(edge: .top).combined(with: .opacity))
+
+            Button {
+                appState.collapse()
+            } label: {
+                Image(systemName: "xmark")
+                    .font(.system(size: 11, weight: .bold))
+                    .foregroundStyle(.white.opacity(0.65))
+                    .frame(width: 24, height: 24)
+                    .background(.white.opacity(0.1), in: Circle())
+            }
+            .buttonStyle(.plain)
+            .padding(.top, notchHeight + 10)
+            .padding(.trailing, 12)
         }
+        .transition(.move(edge: .top).combined(with: .opacity))
     }
 }

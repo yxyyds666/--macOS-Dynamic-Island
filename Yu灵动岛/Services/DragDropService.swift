@@ -5,6 +5,7 @@ import UniformTypeIdentifiers
 /// dragging callbacks. Registering types on an `NSHostingView` isn't enough —
 /// AppKit delivers `NSDraggingDestination` messages to the view itself, so we
 /// need a concrete view that forwards them here.
+@MainActor
 final class DragDropService: NSObject {
     private let appState: AppState
 
@@ -22,16 +23,15 @@ final class DragDropService: NSObject {
 
     // MARK: - Drop handling
 
-    fileprivate func draggingEntered() -> NSDragOperation {
-        appState.isDragTarget = true
-        // Pop the island open so the file transfer panel is ready to receive.
-        appState.dragEnteredNotch()
+    fileprivate func draggingEntered(_ sender: NSDraggingInfo) -> NSDragOperation {
+        guard sender.draggingPasteboard.canReadObject(forClasses: [NSURL.self], options: nil) else {
+            return []
+        }
+        guard appState.beginFileDrag() else { return [] }
         return .copy
     }
 
     fileprivate func draggingExited() {
-        appState.isDragTarget = false
-        // Drag left without dropping — snap back to idle.
         appState.dragExitedNotch()
     }
 
@@ -41,30 +41,32 @@ final class DragDropService: NSObject {
         let pasteboard = sender.draggingPasteboard
         guard let urls = pasteboard.readObjects(forClasses: [NSURL.self]) as? [URL],
               !urls.isEmpty else {
-            // Nothing usable dropped — snap back to idle.
-            appState.dragExitedNotch()
+            appState.showFileDropFeedback("没有可添加的文件", isError: true)
             return false
         }
 
-        let remaining = AppConstants.maxFileItems - appState.fileItems.count
-        for url in urls.prefix(remaining) {
-            appState.addFile(FileItem(url: url))
+        let result = appState.addFiles(urls)
+        // Stay expanded after the drop; the next mouse-exit or close button
+        // collapses it, and the focused file wing shows the result.
+        appState.expand()
+        appState.currentModule = .file
+
+        switch result {
+        case .added, .partial:
+            return true
+        case .full, .disabled, .empty:
+            return false
         }
-        // Auto-switch to the file module so the user sees the result.
-        if appState.showFileModule {
-            appState.currentModule = .file
-        }
-        // Stay expanded after the drop; the next mouse-exit collapses it.
-        return true
     }
 }
 
 /// Concrete view that receives dragging callbacks and forwards them.
+@MainActor
 private final class DraggingView: NSView {
     weak var service: DragDropService?
 
     override func draggingEntered(_ sender: NSDraggingInfo) -> NSDragOperation {
-        service?.draggingEntered() ?? []
+        service?.draggingEntered(sender) ?? []
     }
 
     override func draggingExited(_ sender: NSDraggingInfo?) {

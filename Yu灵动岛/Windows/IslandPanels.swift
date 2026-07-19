@@ -8,8 +8,10 @@ struct MusicPanel: View {
     /// The volume slider only shows in the full expanded layout; the peek drape
     /// hides it to stay compact.
     var showVolume: Bool = false
+    var focused: Bool = true
     @State private var isScrubbing = false
     @State private var scrubTime: TimeInterval = 0
+    @State private var artworkBreathing = false
 
     private var displayTime: TimeInterval { isScrubbing ? scrubTime : appState.currentTime }
     private var fraction: CGFloat {
@@ -77,7 +79,7 @@ struct MusicPanel: View {
                 Spacer(minLength: 0)
             }
 
-            // Volume — only in the full expanded layout.
+            // Volume and full lyrics only in expanded layout.
             if showVolume {
                 HStack(spacing: 10) {
                     Image(systemName: "speaker.fill").font(.system(size: 10)).foregroundStyle(.white.opacity(0.5))
@@ -85,25 +87,56 @@ struct MusicPanel: View {
                         .tint(.white)
                     Image(systemName: "speaker.wave.3.fill").font(.system(size: 10)).foregroundStyle(.white.opacity(0.5))
                 }
+                LyricsPanel(appState: appState).frame(height: 92)
             }
 
             Spacer(minLength: 0)
+        }
+        .opacity(focused ? 1 : 0.62)
+        .animation(.easeInOut(duration: AppConstants.moduleSwitchDuration), value: focused)
+        .onAppear { syncArtworkAnimation() }
+        .onChange(of: appState.isPlaying) { _, _ in syncArtworkAnimation() }
+        .onChange(of: appState.songTitle) { _, _ in
+            artworkBreathing = false
+            syncArtworkAnimation()
+        }
+    }
+
+    private func syncArtworkAnimation() {
+        let active = appState.isPlaying && !appState.songTitle.isEmpty
+        if active {
+            withAnimation(.easeInOut(duration: 0.9).repeatForever(autoreverses: true)) {
+                artworkBreathing = true
+            }
+        } else {
+            withAnimation(.easeOut(duration: 0.18)) {
+                artworkBreathing = false
+            }
         }
     }
 
     @ViewBuilder
     private var artwork: some View {
-        Group {
-            if let art = appState.albumArt {
-                Image(nsImage: art).resizable()
-            } else {
-                RoundedRectangle(cornerRadius: 12).fill(.white.opacity(0.1))
-                    .overlay(Image(systemName: "music.note").font(.system(size: 22)).foregroundStyle(.white.opacity(0.35)))
+        ZStack {
+            RoundedRectangle(cornerRadius: 14, style: .continuous)
+                .fill(.white.opacity(artworkBreathing ? 0.11 : 0))
+                .frame(width: 74, height: 74)
+                .blur(radius: 5)
+            Group {
+                if let art = appState.albumArt {
+                    Image(nsImage: art).resizable()
+                } else {
+                    RoundedRectangle(cornerRadius: 12).fill(.white.opacity(0.1))
+                        .overlay(Image(systemName: "music.note").font(.system(size: 22)).foregroundStyle(.white.opacity(0.35)))
+                }
             }
+            .frame(width: 66, height: 66)
+            .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+            .scaleEffect(artworkBreathing ? 1.025 : 1)
         }
-        .frame(width: 66, height: 66)
-        .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+        .frame(width: 74, height: 74)
     }
+
 
     private func controlButton(_ symbol: String, size: CGFloat, action: @escaping () -> Void) -> some View {
         Button(action: action) {
@@ -122,12 +155,14 @@ struct MusicPanel: View {
 
 struct FilePanel: View {
     @Bindable var appState: AppState
+    var compact: Bool = false
+    var focused: Bool = true
     @State private var isTargeted = false
 
     private let columns = [GridItem(.adaptive(minimum: 68), spacing: 10)]
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 10) {
+        VStack(alignment: .leading, spacing: compact ? 8 : 10) {
             HStack {
                 Text("文件中转站")
                     .font(.system(size: 15, weight: .bold))
@@ -151,10 +186,12 @@ struct FilePanel: View {
                         // Dashed outline only while a drag is hovering over it.
                         RoundedRectangle(cornerRadius: 16, style: .continuous)
                             .strokeBorder(style: StrokeStyle(lineWidth: 1.5, dash: [6, 4]))
-                            .foregroundStyle(.white.opacity(isTargeted ? 0.5 : 0))
+                            .foregroundStyle(.white.opacity((isTargeted || appState.isDragTarget) ? 0.5 : 0))
                     )
 
-                if appState.fileItems.isEmpty {
+                if let feedback = appState.fileDropFeedback {
+                    Text(feedback.message).font(.system(size: 11, weight: .medium)).foregroundStyle(feedback.isError ? .orange : .green).lineLimit(1)
+                } else if appState.fileItems.isEmpty {
                     VStack(spacing: 8) {
                         Image(systemName: "tray.and.arrow.down")
                             .font(.system(size: 30))
@@ -187,15 +224,13 @@ struct FilePanel: View {
     }
 
     private func handleDrop(_ providers: [NSItemProvider]) -> Bool {
-        var handled = false
         for provider in providers {
             _ = provider.loadObject(ofClass: URL.self) { url, _ in
                 guard let url else { return }
-                DispatchQueue.main.async { appState.addFile(FileItem(url: url)) }
+                DispatchQueue.main.async { _ = appState.addFiles([url]) }
             }
-            handled = true
         }
-        return handled
+        return !providers.isEmpty
     }
 }
 
@@ -234,6 +269,153 @@ private struct FileTile: View {
                 .offset(x: 4, y: -4)
             }
         }
+        .onTapGesture(count: 2) { NSWorkspace.shared.open(item.url) }
+        .contextMenu {
+            Button("打开") { NSWorkspace.shared.open(item.url) }
+            Button("在 Finder 中显示") { NSWorkspace.shared.activateFileViewerSelecting([item.url]) }
+            Button("复制路径") { NSPasteboard.general.clearContents(); NSPasteboard.general.setString(item.url.path, forType: .string) }
+            Divider()
+            Button("移除", role: .destructive, action: onRemove)
+        }
         .onHover { hovering = $0 }
+    }
+}
+
+
+/// Full expanded lyrics area. Synced lines are clickable to seek and auto-follow.
+private struct LyricsPanel: View {
+    @Bindable var appState: AppState
+    @State private var isUserScrolling = false
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 5) {
+            HStack {
+                Text("歌词").font(.system(size: 11, weight: .semibold)).foregroundStyle(.white.opacity(0.65))
+                Spacer()
+                if case .failed = appState.lyricsState {
+                    Button("重试") { appState.requestLyricsRetry() }.font(.system(size: 10)).buttonStyle(.plain).foregroundStyle(.white.opacity(0.8))
+                }
+            }
+            Group {
+                switch appState.lyricsState {
+                case .idle: status("播放歌曲后加载歌词")
+                case .loading: HStack(spacing: 6) { ProgressView().controlSize(.small); Text("正在加载歌词…") }.font(.system(size: 11)).foregroundStyle(.white.opacity(0.55))
+                case .failed: status("歌词加载失败")
+                case .notFound: status("暂无歌词")
+                case .plain(let text): ScrollView { Text(text).font(.system(size: 11)).foregroundStyle(.white.opacity(0.7)).frame(maxWidth: .infinity, alignment: .leading).padding(6) }
+                case .synced(let lines): synced(lines)
+                }
+            }
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+            .background(.white.opacity(0.045), in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+        }
+    }
+
+    @ViewBuilder private func synced(_ lines: [LyricLine]) -> some View {
+        ScrollViewReader { proxy in
+            ScrollView {
+                LazyVStack(alignment: .leading, spacing: 4) {
+                    ForEach(Array(lines.enumerated()), id: \.element.id) { index, line in
+                        let active = index == appState.currentLyricIndex
+                        Text(line.text).font(.system(size: active ? 12 : 11, weight: active ? .semibold : .regular))
+                            .foregroundStyle(.white.opacity(active ? 1 : 0.42)).frame(maxWidth: .infinity, alignment: .leading)
+                            .padding(.horizontal, 9).padding(.vertical, 3)
+                            .background(active ? .white.opacity(0.12) : .clear, in: RoundedRectangle(cornerRadius: 6))
+                            .contentShape(Rectangle()).id(line.id).onTapGesture { appState.seek(to: line.time) }
+                    }
+                }.padding(6)
+            }
+            .simultaneousGesture(DragGesture(minimumDistance: 4).onChanged { _ in isUserScrolling = true }.onEnded { _ in isUserScrolling = false })
+            .onChange(of: appState.currentLyricIndex) { _, index in
+                guard !isUserScrolling, lines.indices.contains(index) else { return }
+                withAnimation(.easeInOut(duration: 0.25)) { proxy.scrollTo(lines[index].id, anchor: .center) }
+            }
+            .task { guard lines.indices.contains(appState.currentLyricIndex) else { return }; proxy.scrollTo(lines[appState.currentLyricIndex].id, anchor: .center) }
+        }
+    }
+
+    private func status(_ text: String) -> some View { Text(text).font(.system(size: 11)).foregroundStyle(.white.opacity(0.5)).padding(8) }
+}
+
+// MARK: - Activity capsule
+
+struct ActivityCapsule: View {
+    @Bindable var appState: AppState
+    let notchWidth: CGFloat
+    let notchHeight: CGFloat
+    @State private var artworkBreathing = false
+
+    var body: some View {
+        HStack(spacing: 0) {
+            HStack { Spacer(minLength: 0); artwork }.frame(maxWidth: .infinity).padding(.trailing, 12)
+            Color.clear.frame(width: notchWidth)
+            HStack { rightContent; Spacer(minLength: 0) }.frame(maxWidth: .infinity).padding(.leading, 12)
+        }
+        .frame(maxHeight: .infinity)
+        .padding(.top, max(0, notchHeight - AppConstants.islandActivityHeight + 6)).padding(.bottom, 6)
+        .onAppear { syncCapsuleAnimation() }
+        .onChange(of: appState.isPlaying) { _, _ in syncCapsuleAnimation() }
+    }
+
+    private func syncCapsuleAnimation() {
+        let active = appState.isPlaying && !appState.songTitle.isEmpty && appState.activityContent == .lyrics
+        if active {
+            withAnimation(.easeInOut(duration: 0.9).repeatForever(autoreverses: true)) {
+                artworkBreathing = true
+            }
+        } else {
+            withAnimation(.easeOut(duration: 0.18)) { artworkBreathing = false }
+        }
+    }
+
+    @ViewBuilder private var artwork: some View {
+        ZStack {
+            RoundedRectangle(cornerRadius: 9, style: .continuous)
+                .fill(.white.opacity(artworkBreathing ? 0.12 : 0))
+                .frame(width: 44, height: 44)
+                .blur(radius: 3)
+            Group { if let art = appState.albumArt { Image(nsImage: art).resizable() } else { RoundedRectangle(cornerRadius: 8).fill(.white.opacity(0.12)).overlay(Image(systemName: "music.note").font(.system(size: 14)).foregroundStyle(.white.opacity(0.4))) } }
+                .frame(width: 38, height: 38)
+                .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+                .scaleEffect(artworkBreathing ? 1.025 : 1)
+        }
+        .frame(width: 44, height: 44)
+    }
+
+    @ViewBuilder private var rightContent: some View {
+        switch appState.activityContent {
+        case .lyrics: lyricsPreview
+        case .trackInfo, .none: trackInfo
+        }
+    }
+
+    @ViewBuilder private var lyricsPreview: some View {
+        switch appState.lyricsState {
+        case .loading: Text("正在加载歌词…").font(.system(size: 12)).foregroundStyle(.white.opacity(0.6))
+        case .failed: Text("歌词加载失败").font(.system(size: 12)).foregroundStyle(.white.opacity(0.6))
+        case .plain(let text): Text(text.components(separatedBy: .newlines).filter { !$0.trimmingCharacters(in: .whitespaces).isEmpty }.prefix(2).joined(separator: "\n")).font(.system(size: 12)).foregroundStyle(.white.opacity(0.75)).lineLimit(2)
+        case .synced(let lines):
+            let i = appState.currentLyricIndex
+            HStack(spacing: 7) {
+                PlaybackBars(isPlaying: appState.isPlaying)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(i >= 0 && i < lines.count ? lines[i].text : "♪").font(.system(size: 13, weight: .semibold)).foregroundStyle(.white).lineLimit(2).id(i)
+                    if i + 1 < lines.count { Text(lines[i + 1].text).font(.system(size: 10)).foregroundStyle(.white.opacity(0.4)).lineLimit(1) }
+                }
+            }.animation(.easeInOut(duration: 0.25), value: i)
+        case .idle, .notFound: Text("暂无歌词").font(.system(size: 12, weight: .semibold)).foregroundStyle(.white.opacity(0.7))
+        }
+    }
+
+    private var trackInfo: some View {
+        VStack(alignment: .leading, spacing: 2) {
+            Text(appState.songTitle.isEmpty ? "未在播放" : appState.songTitle).font(.system(size: 14, weight: .bold)).foregroundStyle(.white).lineLimit(1)
+            Text(subtitle).font(.system(size: 11)).foregroundStyle(.white.opacity(0.55)).lineLimit(1)
+        }
+    }
+
+    private var subtitle: String {
+        if !appState.artistName.isEmpty && !appState.albumName.isEmpty { return "\(appState.artistName) · \(appState.albumName)" }
+        return appState.artistName.isEmpty ? appState.albumName : appState.artistName
     }
 }

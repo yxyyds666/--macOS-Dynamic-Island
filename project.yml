@@ -24,6 +24,18 @@ targets:
           # Bundled by build.sh after the Xcode build (the .framework is a
           # directory Xcode would otherwise try to compile as sources).
           - "Resources/MediaRemoteAdapter/**"
+          - "BUILD_INSTRUCTIONS.md"
+    preBuildScripts:
+      - name: Bundle MediaRemote adapter
+        script: |
+          set -euo pipefail
+          adapter_src="${SRCROOT}/Yu灵动岛/Resources/MediaRemoteAdapter"
+          adapter_dst="${TARGET_BUILD_DIR}/${UNLOCALIZED_RESOURCES_FOLDER_PATH}/MediaRemoteAdapter"
+          rm -rf "${adapter_dst}"
+          mkdir -p "${adapter_dst}"
+          ditto "${adapter_src}/" "${adapter_dst}/"
+          codesign --force --deep --sign - "${adapter_dst}/MediaRemoteAdapter.framework"
+        basedOnDependencyAnalysis: false
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.yuxi.yulingdongdao

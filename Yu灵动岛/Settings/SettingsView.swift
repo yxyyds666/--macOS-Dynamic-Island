@@ -18,8 +18,25 @@ struct SettingsView: View {
             GroupBox("通用") {
                 VStack(alignment: .leading, spacing: 12) {
                     Toggle("开机启动", isOn: $launchAtLogin)
-                    Toggle("显示音乐模块", isOn: $showMusicModule)
-                    Toggle("显示文件中转模块", isOn: $showFileModule)
+                    Toggle("显示音乐模块", isOn: Binding(
+                        get: { showMusicModule },
+                        set: { newValue in
+                            if !newValue && !showFileModule { return }
+                            showMusicModule = newValue
+                            clampDefaultModule()
+                        }
+                    ))
+                    Toggle("显示文件中转模块", isOn: Binding(
+                        get: { showFileModule },
+                        set: { newValue in
+                            if !newValue && !showMusicModule { return }
+                            showFileModule = newValue
+                            clampDefaultModule()
+                        }
+                    ))
+                    Text("至少保留一个模块")
+                        .font(.system(size: 11))
+                        .foregroundStyle(.secondary)
                 }
                 .padding(8)
             }
@@ -27,7 +44,7 @@ struct SettingsView: View {
             // Default module
             GroupBox("默认模块") {
                 Picker("", selection: $defaultModule) {
-                    ForEach(NotchModule.allCases, id: \.self) { module in
+                    ForEach(NotchModule.allCases.filter { isModuleEnabled($0) }, id: \.self) { module in
                         Text(module.displayName).tag(module)
                     }
                 }
@@ -71,7 +88,23 @@ struct SettingsView: View {
         animationSpeed = settings.animationSpeed
     }
     
+    private func clampDefaultModule() {
+        if defaultModule == .music && !showMusicModule {
+            defaultModule = showFileModule ? .file : .music
+        } else if defaultModule == .file && !showFileModule {
+            defaultModule = showMusicModule ? .music : .file
+        }
+    }
+
+    private func isModuleEnabled(_ module: NotchModule) -> Bool {
+        module == .music ? showMusicModule : showFileModule
+    }
+
     private func save() {
+        if !showMusicModule && !showFileModule {
+            showMusicModule = true
+        }
+        clampDefaultModule()
         settings.launchAtLogin = launchAtLogin
         settings.showMusicModule = showMusicModule
         settings.showFileModule = showFileModule
