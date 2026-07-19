@@ -96,7 +96,17 @@ final class NotchWindow: NSWindow {
         }
     }
 
-    /// Normalized position (0→1, with overshoot) of an underdamped spring at
+    /// Repositions the island after display arrangement, mirroring, or hot-plug
+    /// changes. The island always follows the built-in notched display.
+    func relocateToBuiltInDisplay() {
+        guard NotchDetector.builtInNotchScreen != nil else {
+            orderOut(nil)
+            return
+        }
+        orderFront(nil)
+        animate(to: appState.islandMode)
+    }
+
     /// time `t`, parameterized like SwiftUI's `.spring(response:dampingFraction:)`.
     /// Returns the fraction of the way from start to target, plus whether the
     /// spring has effectively settled.

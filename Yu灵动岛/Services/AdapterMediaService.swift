@@ -30,6 +30,7 @@ final class AdapterMediaService: MediaServiceProtocol, @unchecked Sendable {
 
     private var streamProcess: Process?
     private var streamBuffer = Data()
+    private var streamPipe: Pipe?
 
     /// Latest merged now-playing fields (stream emits diffs).
     private var merged: [String: Any] = [:]
@@ -61,6 +62,7 @@ final class AdapterMediaService: MediaServiceProtocol, @unchecked Sendable {
         process.arguments = [scriptPath, frameworkPath, "stream", "--debounce=150"]
 
         let pipe = Pipe()
+        streamPipe = pipe
         process.standardOutput = pipe
         process.standardError = Pipe() // discard stderr (non-fatal per docs)
 
@@ -80,6 +82,8 @@ final class AdapterMediaService: MediaServiceProtocol, @unchecked Sendable {
 
     func stopListening() {
         streamProcess?.terminate()
+        streamPipe?.fileHandleForReading.readabilityHandler = nil
+        streamPipe = nil
         streamProcess = nil
     }
 
@@ -162,8 +166,8 @@ final class AdapterMediaService: MediaServiceProtocol, @unchecked Sendable {
         static let play = 0
         static let pause = 1
         static let togglePlayPause = 2
-        static let nextTrack = 4
-        static let previousTrack = 5
+        static let nextTrack = 3
+        static let previousTrack = 4
     }
 
     func play() { runAdapter(["send", "\(Command.play)"]) }

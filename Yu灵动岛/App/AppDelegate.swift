@@ -10,11 +10,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     var appState: AppState?
     private var cancellables = Set<AnyCancellable>()
     private var lyricRequestGeneration = 0
+    private var pendingLyricIdentity: String?
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         // Check for notch
-        guard NSScreen.main?.hasNotch == true else {
-            print("This app requires a MacBook Pro with notch")
+        guard NotchDetector.builtInNotchScreen != nil else {
+            print("This app requires a built-in MacBook Pro display with notch")
             NSApp.terminate(nil)
             return
         }
@@ -58,7 +59,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 }
         )
 
-        // Setup drag and drop
+        NotificationCenter.default.addObserver(
+            forName: NSApplication.didChangeScreenParametersNotification,
+            object: nil,
+            queue: .main
+        ) { [weak self] _ in
+            Task { @MainActor [weak self] in
+                self?.notchWindow?.relocateToBuiltInDisplay()
+            }
+        }
+
         let dragService = DragDropService(appState: state)
         self.dragDropService = dragService
 
@@ -104,14 +114,23 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                     self?.menuBarManager?.updateIcon()
 
                     if changed {
-                        // New song: clear stale lyrics, fetch fresh ones, and —
-                        // when moving between real tracks — pop the info capsule.
+                        // New song: clear stale lyrics and start loading only when
+                        // enough metadata is available for a useful lookup.
                         state.resetLyrics()
-                        if !info.title.isEmpty {
-                            state.setLyricsLoading()
+                        self?.pendingLyricIdentity = nil
+                        if info.duration > 0 {
                             self?.fetchLyrics(for: info, into: state)
-                            if hadTrack { state.trackDidChange() }
+                        } else {
+                            state.setLyricsLoading()
+                            self?.pendingLyricIdentity = self?.lyricIdentity(for: info)
                         }
+                        if hadTrack { state.trackDidChange() }
+                    } else if !info.title.isEmpty,
+                              state.lyricsState == .loading,
+                              self?.pendingLyricIdentity == self?.lyricIdentity(for: info),
+                              info.duration > 0 {
+                        self?.pendingLyricIdentity = nil
+                        self?.fetchLyrics(for: info, into: state)
                     }
                     // Keep the highlighted lyric in step with the media update.
                     state.updateCurrentLyric(at: info.elapsedTime)
@@ -119,7 +138,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         )
     }
 
-    /// Pulls lyrics for the given track and stores them on the state, but only if
+    private func lyricIdentity(for info: NowPlayingInfo) -> String {
+        "\(info.title)|\(info.artist)|\(info.album)"
+    }
+
     /// the track hasn't changed again by the time they arrive.
     private func fetchLyrics(for info: NowPlayingInfo, into state: AppState) {
         lyricRequestGeneration += 1
@@ -131,7 +153,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 artist: info.artist,
                 album: info.album,
                 duration: info.duration,
-                forceRefresh: true
+                forceRefresh: false
             )
             await MainActor.run {
                 guard let self, let state,
