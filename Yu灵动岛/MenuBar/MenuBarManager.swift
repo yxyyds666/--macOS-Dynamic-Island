@@ -19,6 +19,15 @@ final class MenuBarManager: NSObject, NSMenuDelegate, NSWindowDelegate {
         let menu = NSMenu()
         menu.delegate = self
         statusItem?.menu = menu
+
+        // The expanded island's settings button posts this instead of owning the
+        // Settings window itself.
+        NotificationCenter.default.addObserver(
+            self,
+            selector: #selector(openSettings),
+            name: .openSettingsRequested,
+            object: nil
+        )
     }
 
     /// Reflects playback state in the status bar glyph.

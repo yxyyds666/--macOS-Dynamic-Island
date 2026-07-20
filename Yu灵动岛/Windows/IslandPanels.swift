@@ -23,7 +23,120 @@ struct MusicPanel: View {
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: compact ? 8 : 14) {
+        if showVolume {
+            expandedBody
+        } else {
+            compactBody
+        }
+    }
+
+    // MARK: - Expanded (full tab panel, boring.notch style)
+
+    private var expandedBody: some View {
+        VStack(spacing: 12) {
+            // ── Top row: artwork (left) + lyrics (right), boring.notch style ──
+            // Lyrics greedily fill the leftover space; the bottom rows get a
+            // higher layout priority so they are never compressed or clipped.
+            HStack(alignment: .top, spacing: 16) {
+                VStack(spacing: 8) {
+                    IslandArtwork(
+                        appState: appState,
+                        size: 104,
+                        cornerRadius: 16,
+                        namespace: namespace
+                    )
+                    .scaleEffect(artworkBreathing ? 1.022 : 1)
+
+                    // Title + artist under the artwork.
+                    VStack(spacing: 3) {
+                        Text(appState.songTitle.isEmpty ? "未在播放" : appState.songTitle)
+                            .font(.system(size: 14, weight: .bold))
+                            .foregroundStyle(.white)
+                            .lineLimit(1)
+                        Text(appState.artistName.isEmpty ? "打开任意音乐 App" : appState.artistName)
+                            .font(.system(size: 11))
+                            .foregroundStyle(.white.opacity(0.55))
+                            .lineLimit(1)
+                    }
+                    .frame(width: 104)
+                }
+
+                // Lyrics fill the space to the right of the artwork.
+                LyricsPanel(appState: appState)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+            }
+            .frame(maxHeight: .infinity)
+
+            // ── Scrubber ──────────────────────────────────────────────────
+            VStack(spacing: 4) {
+                GeometryReader { geo in
+                    let w = geo.size.width
+                    Capsule()
+                        .fill(.white.opacity(0.18))
+                        .overlay(alignment: .leading) {
+                            Capsule().fill(.white).frame(width: w * fraction)
+                        }
+                        .frame(height: 4)
+                        .contentShape(Rectangle().inset(by: -8))
+                        .gesture(
+                            DragGesture(minimumDistance: 0)
+                                .onChanged { v in
+                                    isScrubbing = true
+                                    scrubTime = Double(min(max(0, v.location.x / w), 1)) * appState.duration
+                                }
+                                .onEnded { _ in
+                                    appState.seek(to: scrubTime)
+                                    isScrubbing = false
+                                }
+                        )
+                }
+                .frame(height: 4)
+                HStack {
+                    Text(formatTime(displayTime))
+                    Spacer()
+                    Text(formatTime(appState.duration))
+                }
+                .font(.system(size: 11, weight: .medium))
+                .foregroundStyle(.white.opacity(0.4))
+            }
+            .layoutPriority(1)
+
+            // ── Bottom row: transport controls (left) + volume (right) ──────
+            HStack(spacing: 18) {
+                HStack(spacing: 26) {
+                    controlButton("backward.fill", size: 18) { appState.previousTrack() }
+                    controlButton(appState.isPlaying ? "pause.fill" : "play.fill", size: 30) { appState.togglePlayPause() }
+                    controlButton("forward.fill", size: 18) { appState.nextTrack() }
+                }
+
+                HStack(spacing: 8) {
+                    Image(systemName: "speaker.fill")
+                        .font(.system(size: 11))
+                        .foregroundStyle(.white.opacity(0.4))
+                    Slider(value: Binding(get: { Double(appState.volume) }, set: { appState.setVolume(Float($0)) }), in: 0...1)
+                        .tint(.white)
+                    Image(systemName: "speaker.wave.3.fill")
+                        .font(.system(size: 11))
+                        .foregroundStyle(.white.opacity(0.4))
+                }
+                .frame(maxWidth: .infinity)
+            }
+            .layoutPriority(1)
+        }
+        .frame(maxHeight: .infinity)
+        .opacity(focused ? 1 : 0.62)
+        .onAppear {
+            appState.syncVolumeFromSystem()
+            syncArtworkAnimation()
+        }
+        .onChange(of: appState.isPlaying) { _, _ in syncArtworkAnimation() }
+        .onChange(of: appState.songTitle) { _, _ in artworkBreathing = false; syncArtworkAnimation() }
+    }
+
+    // MARK: - Compact (peek drape)
+
+    private var compactBody: some View {
+        VStack(alignment: .leading, spacing: 8) {
             HStack(spacing: 14) {
                 artwork
                 VStack(alignment: .leading, spacing: 3) {
@@ -39,7 +152,6 @@ struct MusicPanel: View {
                 Spacer(minLength: 0)
             }
 
-            // Scrubber
             VStack(spacing: 5) {
                 GeometryReader { geo in
                     let w = geo.size.width
@@ -63,7 +175,6 @@ struct MusicPanel: View {
                         )
                 }
                 .frame(height: 6)
-
                 HStack {
                     Text(formatTime(displayTime))
                     Spacer()
@@ -73,48 +184,20 @@ struct MusicPanel: View {
                 .foregroundStyle(.white.opacity(0.5))
             }
 
-            if !compact {
-                HStack(spacing: 34) {
-                    Spacer(minLength: 0)
-                    controlButton("backward.fill", size: 18) { appState.previousTrack() }
-                    controlButton(appState.isPlaying ? "pause.fill" : "play.fill", size: 30) { appState.togglePlayPause() }
-                    controlButton("forward.fill", size: 18) { appState.nextTrack() }
-                    Spacer(minLength: 0)
-                }
-            } else {
-                HStack(spacing: 28) {
-                    Spacer(minLength: 0)
-                    controlButton("backward.fill", size: 16) { appState.previousTrack() }
-                    controlButton(appState.isPlaying ? "pause.fill" : "play.fill", size: 25) { appState.togglePlayPause() }
-                    controlButton("forward.fill", size: 16) { appState.nextTrack() }
-                    Spacer(minLength: 0)
-                }
-            }
-
-            // Volume and full lyrics only in expanded layout.
-            if showVolume {
-                HStack(spacing: 10) {
-                    Image(systemName: "speaker.fill").font(.system(size: 10)).foregroundStyle(.white.opacity(0.5))
-                    Slider(value: Binding(get: { Double(appState.volume) }, set: { appState.setVolume(Float($0)) }), in: 0...1)
-                        .tint(.white)
-                    Image(systemName: "speaker.wave.3.fill").font(.system(size: 10)).foregroundStyle(.white.opacity(0.5))
-                }
-                LyricsPanel(appState: appState).frame(height: 92)
+            HStack(spacing: 28) {
+                Spacer(minLength: 0)
+                controlButton("backward.fill", size: 16) { appState.previousTrack() }
+                controlButton(appState.isPlaying ? "pause.fill" : "play.fill", size: 25) { appState.togglePlayPause() }
+                controlButton("forward.fill", size: 16) { appState.nextTrack() }
+                Spacer(minLength: 0)
             }
 
             Spacer(minLength: 0)
         }
         .opacity(focused ? 1 : 0.62)
-        .animation(.interactiveSpring(response: 0.32, dampingFraction: 0.8, blendDuration: 0.08), value: focused)
-        .onAppear {
-            if showVolume { appState.syncVolumeFromSystem() }
-            syncArtworkAnimation()
-        }
+        .onAppear { syncArtworkAnimation() }
         .onChange(of: appState.isPlaying) { _, _ in syncArtworkAnimation() }
-        .onChange(of: appState.songTitle) { _, _ in
-            artworkBreathing = false
-            syncArtworkAnimation()
-        }
+        .onChange(of: appState.songTitle) { _, _ in artworkBreathing = false; syncArtworkAnimation() }
     }
 
     private func syncArtworkAnimation() {
@@ -165,10 +248,10 @@ struct FilePanel: View {
     var focused: Bool = true
     @State private var isTargeted = false
 
-    private let columns = [GridItem(.adaptive(minimum: 68), spacing: 10)]
+    private var dropActive: Bool { isTargeted || appState.isDragTarget }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: compact ? 8 : 10) {
+        VStack(alignment: .leading, spacing: compact ? 6 : 8) {
             HStack {
                 Text("文件中转站")
                     .font(.system(size: 15, weight: .bold))
@@ -185,47 +268,60 @@ struct FilePanel: View {
                 }
             }
 
-            ZStack {
-                RoundedRectangle(cornerRadius: 16, style: .continuous)
-                    .fill(.white.opacity(0.06))
-                    .overlay(
-                        // Dashed outline only while a drag is hovering over it.
-                        RoundedRectangle(cornerRadius: 16, style: .continuous)
-                            .strokeBorder(style: StrokeStyle(lineWidth: 1.5, dash: [6, 4]))
-                            .foregroundStyle(.white.opacity((isTargeted || appState.isDragTarget) ? 0.5 : 0))
-                    )
+            // boring.notch shelf style: a dashed rounded "tray" that holds either
+            // an empty-state prompt or a horizontally-scrolling row of file tiles.
+            RoundedRectangle(cornerRadius: 16, style: .continuous)
+                .strokeBorder(
+                    dropActive ? Color.accentColor.opacity(0.9) : Color.white.opacity(0.12),
+                    style: StrokeStyle(lineWidth: 2, lineCap: .round, dash: [10, 6])
+                )
+                .background(
+                    RoundedRectangle(cornerRadius: 16, style: .continuous)
+                        .fill(.white.opacity(0.05))
+                )
+                .overlay { trayContent }
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .animation(.easeInOut(duration: 0.15), value: dropActive)
+                .onDrop(of: [.fileURL], isTargeted: $isTargeted) { providers in
+                    handleDrop(providers)
+                }
+        }
+    }
 
-                if let feedback = appState.fileDropFeedback {
-                    Text(feedback.message).font(.system(size: 11, weight: .medium)).foregroundStyle(feedback.isError ? .orange : .green).lineLimit(1)
-                } else if appState.fileItems.isEmpty {
-                    VStack(spacing: 8) {
-                        Image(systemName: "tray.and.arrow.down")
-                            .font(.system(size: 30))
-                            .foregroundStyle(.white.opacity(0.3))
-                        Text("拖拽文件到此")
-                            .font(.system(size: 12))
-                            .foregroundStyle(.white.opacity(0.45))
-                    }
-                } else {
-                    ScrollView {
-                        LazyVGrid(columns: columns, spacing: 10) {
-                            ForEach(appState.fileItems) { item in
-                                FileTile(item: item) {
-                                    if let i = appState.fileItems.firstIndex(where: { $0.id == item.id }) {
-                                        appState.removeFile(at: i)
-                                    }
-                                }
-                                .onDrag { NSItemProvider(object: item.url as NSURL) }
+    @ViewBuilder
+    private var trayContent: some View {
+        if let feedback = appState.fileDropFeedback {
+            Text(feedback.message)
+                .font(.system(size: 12, weight: .medium))
+                .foregroundStyle(feedback.isError ? .orange : .green)
+                .lineLimit(1)
+                .padding(.horizontal, 12)
+        } else if appState.fileItems.isEmpty {
+            VStack(spacing: 10) {
+                Image(systemName: "tray.and.arrow.down")
+                    .symbolVariant(.fill)
+                    .symbolRenderingMode(.hierarchical)
+                    .font(.system(size: 30))
+                    .foregroundStyle(.white.opacity(0.55))
+                Text("拖拽文件到此")
+                    .font(.system(size: 13, weight: .medium))
+                    .foregroundStyle(.white.opacity(0.5))
+            }
+        } else {
+            ScrollView(.horizontal) {
+                HStack(spacing: 8) {
+                    ForEach(appState.fileItems) { item in
+                        FileTile(item: item) {
+                            if let i = appState.fileItems.firstIndex(where: { $0.id == item.id }) {
+                                appState.removeFile(at: i)
                             }
                         }
-                        .padding(10)
+                        .onDrag { NSItemProvider(object: item.url as NSURL) }
                     }
                 }
+                .padding(10)
             }
-            .animation(.easeInOut(duration: 0.15), value: isTargeted)
-            .onDrop(of: [.fileURL], isTargeted: $isTargeted) { providers in
-                handleDrop(providers)
-            }
+            .scrollIndicators(.never)
         }
     }
 
@@ -294,13 +390,9 @@ private struct LyricsPanel: View {
     @State private var isUserScrolling = false
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 5) {
-            HStack {
-                Text("歌词").font(.system(size: 11, weight: .semibold)).foregroundStyle(.white.opacity(0.65))
-                Spacer()
-                if case .failed = appState.lyricsState {
-                    Button("重试") { appState.requestLyricsRetry() }.font(.system(size: 10)).buttonStyle(.plain).foregroundStyle(.white.opacity(0.8))
-                }
+        VStack(alignment: .center, spacing: 5) {
+            if case .failed = appState.lyricsState {
+                Button("重试") { appState.requestLyricsRetry() }.font(.system(size: 10)).buttonStyle(.plain).foregroundStyle(.white.opacity(0.8))
             }
             Group {
                 switch appState.lyricsState {
@@ -308,11 +400,11 @@ private struct LyricsPanel: View {
                 case .loading: HStack(spacing: 6) { ProgressView().controlSize(.small); Text("正在加载歌词…") }.font(.system(size: 11)).foregroundStyle(.white.opacity(0.55))
                 case .failed: status("歌词加载失败")
                 case .notFound: status("暂无歌词")
-                case .plain(let text): ScrollView { Text(text).font(.system(size: 11)).foregroundStyle(.white.opacity(0.7)).frame(maxWidth: .infinity, alignment: .leading).padding(6) }
+                case .plain(let text): ScrollView { Text(text).font(.system(size: 11)).foregroundStyle(.white.opacity(0.7)).multilineTextAlignment(.center).frame(maxWidth: .infinity, alignment: .center).padding(6) }
                 case .synced(let lines): synced(lines)
                 }
             }
-            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .center)
             .background(.white.opacity(0.045), in: RoundedRectangle(cornerRadius: 10, style: .continuous))
         }
     }
@@ -320,16 +412,16 @@ private struct LyricsPanel: View {
     @ViewBuilder private func synced(_ lines: [LyricLine]) -> some View {
         ScrollViewReader { proxy in
             ScrollView {
-                LazyVStack(alignment: .leading, spacing: 4) {
+                LazyVStack(alignment: .center, spacing: 4) {
                     ForEach(Array(lines.enumerated()), id: \.element.id) { index, line in
                         let active = index == appState.currentLyricIndex
-                        Text(line.text).font(.system(size: active ? 12 : 11, weight: active ? .semibold : .regular))
-                            .foregroundStyle(.white.opacity(active ? 1 : 0.42)).frame(maxWidth: .infinity, alignment: .leading)
+                        Text(line.text).font(.system(size: active ? 13 : 11, weight: active ? .semibold : .regular))
+                            .foregroundStyle(.white.opacity(active ? 1 : 0.42)).frame(maxWidth: .infinity, alignment: .center)
+                            .multilineTextAlignment(.center)
                             .padding(.horizontal, 9).padding(.vertical, 3)
-                            .background(active ? .white.opacity(0.12) : .clear, in: RoundedRectangle(cornerRadius: 6))
                             .contentShape(Rectangle()).id(line.id).onTapGesture { appState.seek(to: line.time) }
                     }
-                }.padding(6)
+                }.padding(.vertical, 6)
             }
             .simultaneousGesture(DragGesture(minimumDistance: 4).onChanged { _ in isUserScrolling = true }.onEnded { _ in isUserScrolling = false })
             .onChange(of: appState.currentLyricIndex) { _, index in
@@ -340,7 +432,7 @@ private struct LyricsPanel: View {
         }
     }
 
-    private func status(_ text: String) -> some View { Text(text).font(.system(size: 11)).foregroundStyle(.white.opacity(0.5)).padding(8) }
+    private func status(_ text: String) -> some View { Text(text).font(.system(size: 11)).foregroundStyle(.white.opacity(0.5)).multilineTextAlignment(.center).frame(maxWidth: .infinity, alignment: .center).padding(8) }
 }
 
 // MARK: - Activity capsule

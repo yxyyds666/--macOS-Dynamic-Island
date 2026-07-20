@@ -109,51 +109,123 @@ struct IslandView: View {
     }
 
     private var expandedContent: some View {
-        ZStack(alignment: .topTrailing) {
-            HStack(spacing: 0) {
-                Group {
-                    if appState.showMusicModule {
-                        MusicPanel(
-                            appState: appState,
-                            showVolume: true,
-                            focused: appState.currentModule == .music,
-                            namespace: artworkNS
-                        )
-                        .padding(.horizontal, 12)
+        VStack(spacing: 0) {
+            // ── Tab bar ──────────────────────────────────────────────────────
+            // Sits just below the physical notch, centered, with module tabs on
+            // the left and a settings gear on the right (boring.notch style).
+            HStack {
+                Spacer(minLength: 0)
+                HStack(spacing: 4) {
+                    ForEach(appState.availableModules, id: \.self) { module in
+                        ExpandedTabButton(
+                            label: module.displayName,
+                            icon: module.sfSymbol,
+                            selected: appState.currentModule == module
+                        ) {
+                            withAnimation(.smooth(duration: 0.22)) {
+                                appState.currentModule = module
+                            }
+                        }
                     }
                 }
-                .frame(maxWidth: .infinity)
-
-                Color.clear.frame(width: notchWidth)
-
-                Group {
-                    if appState.showFileModule {
-                        FilePanel(
-                            appState: appState,
-                            compact: false,
-                            focused: appState.currentModule == .file
-                        )
-                        .padding(.horizontal, 12)
-                    }
+                Spacer(minLength: 0)
+                // Settings gear — posts a notification so MenuBarManager opens
+                // the Settings window (the island can't own it directly).
+                Button {
+                    NotificationCenter.default.post(
+                        name: .openSettingsRequested, object: nil)
+                } label: {
+                    Image(systemName: "gearshape.fill")
+                        .font(.system(size: 13))
+                        .foregroundStyle(.white.opacity(0.55))
+                        .frame(width: 28, height: 28)
+                        .background(.white.opacity(0.08), in: Circle())
+                        .contentShape(Circle())
                 }
-                .frame(maxWidth: .infinity)
-            }
-            .padding(.top, notchHeight + 8)
-            .padding(.bottom, 20)
+                .buttonStyle(.plain)
+                .padding(.trailing, 8)
 
-            Button {
-                appState.collapse()
-            } label: {
-                Image(systemName: "xmark")
-                    .font(.system(size: 11, weight: .bold))
-                    .foregroundStyle(.white.opacity(0.65))
-                    .frame(width: 24, height: 24)
-                    .background(.white.opacity(0.1), in: Circle())
+                // Close button
+                Button { appState.collapse() } label: {
+                    Image(systemName: "xmark")
+                        .font(.system(size: 11, weight: .bold))
+                        .foregroundStyle(.white.opacity(0.65))
+                        .frame(width: 28, height: 28)
+                        .background(.white.opacity(0.1), in: Circle())
+                        .contentShape(Circle())
+                }
+                .buttonStyle(.plain)
+                .padding(.trailing, 12)
             }
-            .buttonStyle(.plain)
-            .padding(.top, notchHeight + 10)
-            .padding(.trailing, 12)
+            .padding(.top, notchHeight + 6)
+            .padding(.bottom, 8)
+
+            Divider().background(.white.opacity(0.08))
+
+            // ── Active module panel ──────────────────────────────────────────
+            Group {
+                switch appState.currentModule {
+                case .music:
+                    MusicPanel(
+                        appState: appState,
+                        showVolume: true,
+                        focused: true,
+                        namespace: artworkNS
+                    )
+                    .padding(.horizontal, 20)
+                    .padding(.vertical, 12)
+                    .transition(.opacity.combined(with: .move(edge: .leading)))
+                case .file:
+                    FilePanel(
+                        appState: appState,
+                        compact: false,
+                        focused: true
+                    )
+                    .padding(.horizontal, 20)
+                    .padding(.vertical, 12)
+                    .transition(.opacity.combined(with: .move(edge: .trailing)))
+                }
+            }
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+            .animation(.smooth(duration: 0.22), value: appState.currentModule)
         }
         .transition(.opacity)
+    }
+}
+
+// MARK: - Tab button (boring.notch style)
+
+private struct ExpandedTabButton: View {
+    let label: String
+    let icon: String
+    let selected: Bool
+    let action: () -> Void
+    @State private var hovering = false
+
+    var body: some View {
+        Button(action: action) {
+            HStack(spacing: 5) {
+                Image(systemName: icon)
+                    .font(.system(size: 12, weight: .medium))
+                if selected {
+                    Text(label)
+                        .font(.system(size: 12, weight: .medium))
+                        .transition(.opacity.combined(with: .scale(scale: 0.85)))
+                }
+            }
+            .padding(.vertical, 5)
+            .padding(.horizontal, 10)
+            .background(
+                Capsule()
+                    .fill((selected || hovering)
+                          ? Color.white.opacity(selected ? 0.18 : 0.09)
+                          : Color.clear)
+            )
+            .foregroundStyle(selected ? .white : .white.opacity(0.5))
+            .animation(.smooth(duration: 0.18), value: selected)
+            .animation(.easeInOut(duration: 0.12), value: hovering)
+        }
+        .buttonStyle(.plain)
+        .onHover { hovering = $0 }
     }
 }

@@ -2,6 +2,9 @@ import Foundation
 
 extension Notification.Name {
     static let lyricsRetryRequested = Notification.Name("com.yuxi.yulingdongdao.lyricsRetryRequested")
+    /// Posted from the expanded island's tab bar to ask the menu-bar controller
+    /// to open the Settings window (the island can't own that window itself).
+    static let openSettingsRequested = Notification.Name("com.yuxi.yulingdongdao.openSettingsRequested")
 }
 
 enum AppConstants {
@@ -25,10 +28,12 @@ enum AppConstants {
     static let islandHoverWingWidth: CGFloat = 72
     static let islandHoverHeightExtra: CGFloat = 14
 
-    // Peek state: a wider, shallower drape so the artwork and controls sit below
-    // the physical notch without wasting vertical space.
+    // Peek state: a wider drape whose chin is tall enough to clear the physical
+    // notch AND fully show the artwork + track info + scrubber + controls below
+    // it (content starts at ~notchHeight+10, so the chin must exceed that plus
+    // the music panel's own height or the bottom gets clipped by the shape).
     static let islandPeekWingWidth: CGFloat = 112
-    static let islandPeekHeight: CGFloat = 172
+    static let islandPeekHeight: CGFloat = 232
     static let islandCornerRadius: CGFloat = 24
 
     // Activity state: a horizontal live-activity capsule wrapping AROUND the
@@ -48,7 +53,7 @@ enum AppConstants {
     // left, files on the right, the physical notch showing through the middle.
     static let expandSidePanelWidth: CGFloat = 320
     static var expandPanelWidth: CGFloat { notchWidth + 2 * expandSidePanelWidth }
-    static let expandPanelHeight: CGFloat = 250
+    static let expandPanelHeight: CGFloat = 340
     static let expandPanelCornerRadius: CGFloat = 24
     // Rounded inner corners of the notch cutout in the expanded bar.
     static let notchCutoutCornerRadius: CGFloat = 10

@@ -36,6 +36,12 @@ final class NotchWindow: NSWindow {
     override var canBecomeKey: Bool { true }
     override var canBecomeMain: Bool { false }
 
+    /// Monitors the cursor so the (large, transparent) window only intercepts
+    /// mouse events while the pointer is actually over the island. Everywhere
+    /// else the window is click-through so the menu bar and other apps behind
+    /// the transparent margin stay usable.
+    private var mouseMonitor: Any?
+
     private func setupWindow() {
         isOpaque = false
         backgroundColor = .clear
@@ -45,7 +51,11 @@ final class NotchWindow: NSWindow {
         hasShadow = false
         level = NSWindow.Level(rawValue: Int(CGWindowLevelForKey(.statusWindow)) + 1)
         isMovableByWindowBackground = false
-        ignoresMouseEvents = false
+        // Start click-through; the mouse monitor flips this on only while the
+        // cursor is over the island. A view-level hitTest returning nil is NOT
+        // enough — it doesn't forward the click to the menu bar / window behind;
+        // only ignoresMouseEvents actually lets the click pass through.
+        ignoresMouseEvents = true
         collectionBehavior = [.canJoinAllSpaces, .stationary, .fullScreenAuxiliary]
 
         setFrame(NotchDetector.fixedWindowFrame(), display: true)
@@ -56,7 +66,31 @@ final class NotchWindow: NSWindow {
         // Seed the initial hit/hover geometry.
         container.updateMode(appState.islandMode)
 
+        installMouseMonitor()
         orderFront(nil)
+    }
+
+    /// Global + local mouse-moved monitor. This single monitor does two jobs:
+    ///   1. Toggles `ignoresMouseEvents` so the (large, transparent) window only
+    ///      intercepts clicks while the cursor is over the island; everywhere else
+    ///      it is click-through so the menu bar / other apps stay usable.
+    ///   2. Drives hover enter/exit DIRECTLY. We can't use an NSTrackingArea for
+    ///      this: the window starts click-through, and by the time the monitor
+    ///      flips it interactive the cursor is already inside the rect, so no
+    ///      boundary is crossed and `mouseEntered` never fires. Computing hover
+    ///      from the cursor position here is reliable regardless of that toggle.
+    private func installMouseMonitor() {
+        let update: () -> Void = { [weak self] in
+            guard let self else { return }
+            let over = self.container.islandContains(screenPoint: NSEvent.mouseLocation)
+            if self.ignoresMouseEvents == over {
+                self.ignoresMouseEvents = !over
+            }
+            self.container.pointerOverIsland(over)
+        }
+        // Local (events already routed to this app) + global (other apps focused).
+        mouseMonitor = NSEvent.addGlobalMonitorForEvents(matching: [.mouseMoved]) { _ in update() }
+        NSEvent.addLocalMonitorForEvents(matching: [.mouseMoved]) { event in update(); return event }
     }
 
     /// Called by the island observer whenever the visual mode changes. The
@@ -102,10 +136,12 @@ private final class FirstMouseHostingView<Content: View>: NSHostingView<Content>
 ///     only over the actual island, not the whole (large) window.
 private final class IslandContainerView: NSView {
     private let appState: AppState
-    private var trackingArea: NSTrackingArea?
     private var exitTask: Task<Void, Never>?
     /// The visual mode whose geometry currently defines the clickable/hover rect.
     private var mode: IslandMode = .idle
+    /// Whether the cursor is currently considered over the island, so we only
+    /// fire enter/exit on transitions (the monitor calls us on every move).
+    private var isPointerOver = false
 
     init(appState: AppState) {
         self.appState = appState
@@ -132,7 +168,6 @@ private final class IslandContainerView: NSView {
     /// window on every mode change.
     func updateMode(_ mode: IslandMode) {
         self.mode = mode
-        updateTrackingAreas()
     }
 
     /// The island's rect in this view's (non-flipped, bottom-left origin)
@@ -145,48 +180,42 @@ private final class IslandContainerView: NSView {
         return NSRect(x: x, y: y, width: size.width, height: size.height)
     }
 
-    // Only the island area is interactive; everything else (the transparent
-    // margin around it) returns nil so clicks fall through to windows behind.
+    /// Called by the window's mouse monitor on every move event. Fires
+    /// enter/exit only on transitions so `mouseEnteredNotch` / `mouseExitedNotch`
+    /// are called exactly once per crossing — not on every mouse-moved event.
+    /// This replaces NSTrackingArea, which misses entries when the window is
+    /// click-through and the cursor is already inside the rect.
+    func pointerOverIsland(_ over: Bool) {
+        guard over != isPointerOver else { return }
+        isPointerOver = over
+        if over {
+            exitTask?.cancel()
+            exitTask = nil
+            appState.mouseEnteredNotch()
+        } else {
+            exitTask?.cancel()
+            exitTask = Task { @MainActor [weak self] in
+                try? await Task.sleep(for: .milliseconds(90))
+                guard !Task.isCancelled, let self else { return }
+                let still = self.islandContains(screenPoint: NSEvent.mouseLocation)
+                guard !still else { return }
+                self.isPointerOver = false
+                self.appState.mouseExitedNotch()
+            }
+        }
+    }
+
+    func islandContains(screenPoint: NSPoint) -> Bool {
+        guard let window else { return false }
+        let inWindow = window.convertPoint(fromScreen: screenPoint)
+        let local = convert(inWindow, from: nil)
+        return islandRect(for: mode).contains(local)
+    }
+
+    // Only the island area is interactive; transparent margin passes clicks through.
     override func hitTest(_ point: NSPoint) -> NSView? {
         let local = convert(point, from: superview)
         guard islandRect(for: mode).contains(local) else { return nil }
         return super.hitTest(point)
-    }
-
-    override func updateTrackingAreas() {
-        super.updateTrackingAreas()
-        if let trackingArea { removeTrackingArea(trackingArea) }
-        // Track hover over the current island rect only, so moving the mouse over
-        // the transparent margin doesn't count as hovering the island.
-        let rect = islandRect(for: mode)
-        let area = NSTrackingArea(
-            rect: rect,
-            options: [.mouseEnteredAndExited, .activeAlways],
-            owner: self,
-            userInfo: nil
-        )
-        addTrackingArea(area)
-        trackingArea = area
-    }
-
-    override func mouseEntered(with event: NSEvent) {
-        exitTask?.cancel()
-        exitTask = nil
-        appState.mouseEnteredNotch()
-    }
-
-    override func mouseExited(with event: NSEvent) {
-        exitTask?.cancel()
-        exitTask = Task { @MainActor [weak self] in
-            try? await Task.sleep(for: .milliseconds(90))
-            guard !Task.isCancelled,
-                  let self,
-                  let window = self.window else { return }
-            let mouseInScreen = NSEvent.mouseLocation
-            let mouseInWindow = window.convertPoint(fromScreen: mouseInScreen)
-            let local = self.convert(mouseInWindow, from: nil)
-            guard !self.islandRect(for: self.mode).insetBy(dx: -2, dy: -2).contains(local) else { return }
-            self.appState.mouseExitedNotch()
-        }
     }
 }
