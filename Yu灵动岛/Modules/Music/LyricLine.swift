@@ -21,6 +21,14 @@ enum LRCParser {
         // [mm:ss.xx] or [mm:ss] timestamp tags.
         let tagPattern = #"\[(\d{1,2}):(\d{2})(?:[.:](\d{1,3}))?\]"#
         guard let regex = try? NSRegularExpression(pattern: tagPattern) else { return [] }
+        let offsetPattern = #"(?im)^\s*\[offset\s*:\s*([+-]?\d+)\]\s*$"#
+        let offsetMilliseconds: Double = {
+            guard let offsetRegex = try? NSRegularExpression(pattern: offsetPattern) else { return 0 }
+            let ns = lrc as NSString
+            guard let match = offsetRegex.firstMatch(in: lrc, range: NSRange(location: 0, length: ns.length)),
+                  match.range(at: 1).location != NSNotFound else { return 0 }
+            return Double(ns.substring(with: match.range(at: 1))) ?? 0
+        }()
 
         for raw in lrc.split(whereSeparator: \.isNewline) {
             let line = String(raw)
@@ -42,7 +50,8 @@ enum LRCParser {
                     let fs = ns.substring(with: fracRange)
                     frac = (Double(fs) ?? 0) / pow(10, Double(fs.count))
                 }
-                lines.append(LyricLine(time: mm * 60 + ss + frac, text: text))
+                let time = max(0, mm * 60 + ss + frac + offsetMilliseconds / 1_000)
+                lines.append(LyricLine(time: time, text: text))
             }
         }
         return lines.sorted { $0.time < $1.time }

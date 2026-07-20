@@ -51,49 +51,91 @@ final class NotchWindow: NSWindow {
     // Animation state. The island snaps between sizes on a damped spring, so it
     // reads as a quick, springy "Q弹" pop with a touch of overshoot rather than
     // a slow drape.
-    private var animTimer: Timer?
+    //
+    // The animation is driven by a CADisplayLink so ticks land exactly on the
+    // display's vsync — no drift/judder like a free-running Timer — and each
+    // frame only resizes the window (setFrame display:false), letting Core
+    // Animation scale the hosting view's layer on the GPU instead of forcing a
+    // synchronous CPU relayout+redraw of the whole SwiftUI tree every frame.
+    private var displayLink: CADisplayLink?
     private var animStart = NSRect.zero
     private var animTarget = NSRect.zero
     private var animElapsed: TimeInterval = 0
-    /// Seconds per frame for the current animation, matched to the display's
-    /// refresh rate so we don't schedule redraws the screen can't show.
-    private var animFrameInterval: TimeInterval = 1.0 / 60.0
+    /// Wall-clock timestamp of the previous display-link tick, used to advance
+    /// the spring by the real frame duration rather than a fixed 1/fps guess.
+    private var lastTickTimestamp: CFTimeInterval = 0
     /// Animation-speed multiplier, sampled once when the animation starts rather
     /// than re-read from UserDefaults on every frame.
     private var animSpeed: Double = 1
 
-    /// Spring "response" (roughly the settling period) in seconds. Small = snappy.
-    private let springResponse: TimeInterval = 0.34
-    /// Damping ratio. < 1 underdamps → a little overshoot/bounce (the Q弹 feel).
-    private let springDamping: Double = 0.62
+    // The island animates on TWO independent springs — a horizontal one for
+    // x/width and a vertical one for y/height. Keeping the axes separate is what
+    // makes a reveal read as a clean straight-down "pull the blind" motion: the
+    // width opens first and fast, then the panel drapes down on its own slower
+    // curve, instead of sliding in diagonally on a single shared curve.
+    private var springResponseH: TimeInterval = 0.30
+    private var springDampingH: Double = 0.82
+    private var springResponseV: TimeInterval = 0.34
+    private var springDampingV: Double = 0.82
 
     /// Resizes/repositions the window to match the island's current mode.
-    /// Width/x and height/y all spring toward the target; expanding grows
-    /// symmetrically around the notch, collapsing snaps crisply back in.
+    /// Width/x spring on the horizontal curve, height/y on the vertical curve;
+    /// the top edge stays pinned so growth drapes straight down.
     func animate(to mode: IslandMode) {
         if mode == .expanded {
             makeKeyAndOrderFront(nil)
+        } else if isKeyWindow {
+            resignKey()
         }
 
-        // Idle uses the real notch size so the collapsed pill matches exactly.
-        let targetSize = mode == .idle ? NotchDetector.idleSize() : mode.size
+        let notchSize = NotchDetector.idleSize()
+        appState.notchSize = notchSize
+        let targetSize = mode.size(notchSize: notchSize)
         animTarget = NotchDetector.islandFrame(for: targetSize)
         animStart = frame
         animElapsed = 0
 
-        // Sample the (fixed-for-this-run) inputs once, up front.
+        // The HORIZONTAL axis is always critically damped (damping = 1, no
+        // overshoot). If width overshot it would dip narrower than the notch for
+        // a frame or two and expose the screen beside the notch — the "gap" ring.
+        // The vertical axis may overshoot softly since that only affects the
+        // downward drape, which never uncovers the notch.
+        switch mode {
+        case .hover:
+            // A quick, tight bulge with no drape.
+            springResponseH = 0.24; springDampingH = 1.0
+            springResponseV = 0.24; springDampingV = 1.0
+        case .idle, .playing:
+            // Snap crisply back in.
+            springResponseH = 0.26; springDampingH = 1.0
+            springResponseV = 0.26; springDampingV = 1.0
+        case .activity:
+            springResponseH = 0.28; springDampingH = 1.0
+            springResponseV = 0.30; springDampingV = 0.84
+        case .peek, .expanded:
+            // Width opens fast (critically damped so the sides never uncover the
+            // notch); height drapes down slower with a soft iPhone-like settle.
+            springResponseH = 0.26; springDampingH = 1.0
+            springResponseV = 0.42; springDampingV = 0.80
+        }
+
+        // Sample the (fixed-for-this-run) speed multiplier once, up front.
         let speed = SettingsManager.shared.animationSpeed
         animSpeed = speed > 0 ? speed : 1
-        let fps = (screen ?? NSScreen.main)?.maximumFramesPerSecond ?? 60
-        animFrameInterval = 1.0 / Double(max(fps, 30))
 
-        animTimer?.invalidate()
-        // Step the spring toward the target at the display's cadence.
-        animTimer = Timer.scheduledTimer(withTimeInterval: animFrameInterval, repeats: true) { [weak self] _ in
-            Task { @MainActor [weak self] in
-                self?.stepAnimation()
-            }
+        // Drive the spring off the display's vsync. Reuse an existing link if a
+        // previous animation is still running so we retarget smoothly from the
+        // current frame instead of restarting the clock.
+        lastTickTimestamp = 0
+        if displayLink == nil {
+            let link = (contentView ?? self.contentView)?.displayLink(
+                target: self,
+                selector: #selector(stepAnimation(_:))
+            )
+            link?.add(to: .main, forMode: .common)
+            displayLink = link
         }
+        displayLink?.isPaused = false
     }
 
     /// Repositions the island after display arrangement, mirroring, or hot-plug
@@ -107,49 +149,78 @@ final class NotchWindow: NSWindow {
         animate(to: appState.islandMode)
     }
 
-    /// time `t`, parameterized like SwiftUI's `.spring(response:dampingFraction:)`.
-    /// Returns the fraction of the way from start to target, plus whether the
-    /// spring has effectively settled.
-    private func springValue(_ t: Double) -> (value: CGFloat, settled: Bool) {
-        let zeta = springDamping
-        let omega0 = 2 * Double.pi / springResponse           // natural frequency
+    /// Evaluates a spring at time `t`, parameterized like SwiftUI's
+    /// `.spring(response:dampingFraction:)`. Returns the fraction of the way from
+    /// start to target, plus whether the spring has effectively settled.
+    private func springValue(_ t: Double, response: TimeInterval, damping: Double) -> (value: CGFloat, settled: Bool) {
+        let zeta = damping
+        let omega0 = 2 * Double.pi / response                 // natural frequency
         if zeta < 1 {
             // Underdamped: decaying oscillation → gentle overshoot.
             let omegaD = omega0 * (1 - zeta * zeta).squareRoot()  // damped frequency
             let decay = exp(-zeta * omega0 * t)
             let p = 1 - decay * (cos(omegaD * t) + (zeta * omega0 / omegaD) * sin(omegaD * t))
             // Settled once the envelope has decayed to a hair.
-            let settled = decay < 0.01 && t > springResponse * 0.5
+            let settled = decay < 0.01 && t > response * 0.5
             return (CGFloat(p), settled)
         } else {
             // Critically damped fallback: no overshoot.
             let decay = exp(-omega0 * t)
             let p = 1 - decay * (1 + omega0 * t)
-            return (CGFloat(p), decay < 0.01 && t > springResponse * 0.5)
+            return (CGFloat(p), decay < 0.01 && t > response * 0.5)
         }
     }
 
-    private func stepAnimation() {
-        animElapsed += animFrameInterval * animSpeed
+    /// Driven by the display link at each vsync. Advances the spring by the real
+    /// elapsed frame time (not a fixed `1/fps`), so an occasional long frame does
+    /// not accumulate error or judder.
+    @objc private func stepAnimation(_ link: CADisplayLink) {
+        // Real seconds since the previous tick, scaled by the speed multiplier.
+        // The first tick of a run has no previous timestamp, so advance by one
+        // vsync interval instead of a huge delta.
+        let interval = link.targetTimestamp - link.timestamp
+        let delta = lastTickTimestamp == 0
+            ? interval
+            : (link.timestamp - lastTickTimestamp)
+        lastTickTimestamp = link.timestamp
+        animElapsed += max(0, delta) * animSpeed
 
-        let (eased, settled) = springValue(animElapsed)
+        // Horizontal (x/width) and vertical (y/height) advance on independent
+        // springs. The top edge is pinned by islandFrame, so height growth reads
+        // as a straight downward drape rather than a diagonal slide.
+        let (easedH, settledH) = springValue(animElapsed, response: springResponseH, damping: springDampingH)
+        let (easedV, settledV) = springValue(animElapsed, response: springResponseV, damping: springDampingV)
 
-        // Every frame stays centered on the notch (x = midX - w/2), so growing
-        // the width expands symmetrically toward BOTH sides — the expanded bar
-        // wraps out around the notch evenly. All edges spring together.
+        // x/width stay centered on the notch so the panel opens symmetrically to
+        // both sides; y/height drape down on the vertical curve.
         let newFrame = NSRect(
-            x: animStart.origin.x + (animTarget.origin.x - animStart.origin.x) * eased,
-            y: animStart.origin.y + (animTarget.origin.y - animStart.origin.y) * eased,
-            width: animStart.width + (animTarget.width - animStart.width) * eased,
-            height: animStart.height + (animTarget.height - animStart.height) * eased
+            x: animStart.origin.x + (animTarget.origin.x - animStart.origin.x) * easedH,
+            y: animStart.origin.y + (animTarget.origin.y - animStart.origin.y) * easedV,
+            width: animStart.width + (animTarget.width - animStart.width) * easedH,
+            height: animStart.height + (animTarget.height - animStart.height) * easedV
         )
-        setFrame(newFrame, display: true)
+        // display: false — the content view is layer-backed, so Core Animation
+        // scales the cached layer on the GPU each frame instead of forcing a
+        // synchronous CPU relayout/redraw of the whole SwiftUI tree.
+        setFrame(newFrame, display: false)
 
-        if settled {
+        let frameError = max(
+            abs(newFrame.origin.x - animTarget.origin.x),
+            abs(newFrame.origin.y - animTarget.origin.y),
+            abs(newFrame.width - animTarget.width),
+            abs(newFrame.height - animTarget.height)
+        )
+        if settledH && settledV && frameError < 0.5 {
+            // Land on the exact target with one authoritative layout pass.
             setFrame(animTarget, display: true)
-            animTimer?.invalidate()
-            animTimer = nil
+            stopDisplayLink()
         }
+    }
+
+    private func stopDisplayLink() {
+        displayLink?.invalidate()
+        displayLink = nil
+        lastTickTimestamp = 0
     }
 }
 
@@ -166,10 +237,18 @@ private final class FirstMouseHostingView<Content: View>: NSHostingView<Content>
 private final class IslandContainerView: NSView {
     private let appState: AppState
     private var trackingArea: NSTrackingArea?
+    private var exitTask: Task<Void, Never>?
 
     init(appState: AppState) {
         self.appState = appState
         super.init(frame: .zero)
+
+        // Layer-back the container and only redraw its layer when explicitly
+        // invalidated. During the window's per-frame resize animation (which
+        // calls setFrame display:false) Core Animation scales the cached layer
+        // on the GPU instead of triggering a CPU redraw of the SwiftUI tree.
+        wantsLayer = true
+        layerContentsRedrawPolicy = .onSetNeedsDisplay
 
         let hosting = FirstMouseHostingView(rootView: IslandView(appState: appState))
         hosting.translatesAutoresizingMaskIntoConstraints = false
@@ -202,11 +281,22 @@ private final class IslandContainerView: NSView {
     }
 
     override func mouseEntered(with event: NSEvent) {
+        exitTask?.cancel()
+        exitTask = nil
         appState.mouseEnteredNotch()
     }
 
     override func mouseExited(with event: NSEvent) {
-        // Leaving the island collapses everything back into the notch.
-        appState.mouseExitedNotch()
+        exitTask?.cancel()
+        exitTask = Task { @MainActor [weak self] in
+            try? await Task.sleep(for: .milliseconds(90))
+            guard !Task.isCancelled,
+                  let self,
+                  let window = self.window else { return }
+            let mouseInScreen = NSEvent.mouseLocation
+            let mouseInWindow = window.convertPoint(fromScreen: mouseInScreen)
+            guard !self.bounds.insetBy(dx: -2, dy: -2).contains(mouseInWindow) else { return }
+            self.appState.mouseExitedNotch()
+        }
     }
 }

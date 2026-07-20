@@ -1,8 +1,10 @@
 import AppKit
+import SwiftUI
 
 @MainActor
-final class MenuBarManager: NSObject, NSMenuDelegate {
+final class MenuBarManager: NSObject, NSMenuDelegate, NSWindowDelegate {
     private var statusItem: NSStatusItem?
+    private var settingsWindow: NSWindow?
     private let appState: AppState
 
     init(appState: AppState) {
@@ -104,14 +106,52 @@ final class MenuBarManager: NSObject, NSMenuDelegate {
     }
 
     @objc private func openSettings() {
-        NSApp.activate(ignoringOtherApps: true)
-        // macOS 14+ uses the "showSettingsWindow:" selector; older uses
-        // "showPreferencesWindow:". Try both so the Settings scene opens.
-        if #available(macOS 14, *) {
-            NSApp.sendAction(Selector(("showSettingsWindow:")), to: nil, from: nil)
-        } else {
-            NSApp.sendAction(Selector(("showPreferencesWindow:")), to: nil, from: nil)
+        // The menu is still tracking/closing when this action fires, so
+        // activation and key-window promotion get swallowed if done inline.
+        // Defer to the next runloop tick so the menu has fully dismissed first.
+        DispatchQueue.main.async { [weak self] in
+            self?.presentSettings()
         }
+    }
+
+    private func presentSettings() {
+        // This is an LSUIElement (menu-bar-only) app, so it normally runs as an
+        // .accessory app that can't become active — its windows show but never
+        // become key, so controls don't take clicks. Promote to .regular while
+        // the settings window is open so it can accept input, then drop back to
+        // .accessory when it closes (see windowWillClose).
+        NSApp.setActivationPolicy(.regular)
+
+        // Rebuild the content each open so SwiftUI @State reloads from the saved
+        // settings rather than showing stale draft values from a prior session.
+        let controller = NSHostingController(
+            rootView: SettingsView { [weak self] in
+                self?.settingsWindow?.close()
+            }
+        )
+        if let window = settingsWindow {
+            window.contentViewController = controller
+        } else {
+            let window = NSWindow(contentViewController: controller)
+            window.title = "设置"
+            window.styleMask = [.titled, .closable]
+            window.isReleasedWhenClosed = false
+            window.delegate = self
+            settingsWindow = window
+        }
+        settingsWindow?.center()
+        NSApp.activate(ignoringOtherApps: true)
+        settingsWindow?.makeKeyAndOrderFront(nil)
+        settingsWindow?.orderFrontRegardless()
+    }
+
+    // MARK: - NSWindowDelegate
+
+    /// Drop back to accessory (menu-bar-only) once settings closes, so the app
+    /// stops showing a Dock icon and app menu.
+    func windowWillClose(_ notification: Notification) {
+        guard (notification.object as? NSWindow) === settingsWindow else { return }
+        NSApp.setActivationPolicy(.accessory)
     }
 
     @objc private func showAbout() {

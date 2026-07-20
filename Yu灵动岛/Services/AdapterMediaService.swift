@@ -28,12 +28,13 @@ final class AdapterMediaService: MediaServiceProtocol, @unchecked Sendable {
     private let scriptPath: String?
     private let frameworkPath: String?
 
+    private let streamQueue = DispatchQueue(label: "com.yuxi.yulingdongdao.media-stream")
     private var streamProcess: Process?
-    private var streamBuffer = Data()
     private var streamPipe: Pipe?
-
-    /// Latest merged now-playing fields (stream emits diffs).
+    private var streamBuffer = Data()
     private var merged: [String: Any] = [:]
+    private var streamGeneration: UInt = 0
+    private var shouldRestart = false
 
     init() {
         let resources = Bundle.main.resourceURL?.appendingPathComponent("MediaRemoteAdapter")
@@ -52,10 +53,29 @@ final class AdapterMediaService: MediaServiceProtocol, @unchecked Sendable {
     // MARK: - Listening
 
     func startListening() {
+        streamQueue.async { [weak self] in
+            self?.startStream()
+        }
+    }
+
+    func stopListening() {
+        streamQueue.async { [weak self] in
+            self?.stopStream()
+        }
+    }
+
+    private func startStream() {
         guard isAvailable, let scriptPath, let frameworkPath else {
             print("[Adapter] media adapter resources missing; now-playing disabled")
             return
         }
+        guard streamProcess == nil else { return }
+
+        shouldRestart = true
+        streamGeneration &+= 1
+        let generation = streamGeneration
+        streamBuffer.removeAll(keepingCapacity: true)
+        merged.removeAll(keepingCapacity: true)
 
         let process = Process()
         process.executableURL = URL(fileURLWithPath: perlPath)
@@ -64,33 +84,76 @@ final class AdapterMediaService: MediaServiceProtocol, @unchecked Sendable {
         let pipe = Pipe()
         streamPipe = pipe
         process.standardOutput = pipe
-        process.standardError = Pipe() // discard stderr (non-fatal per docs)
+        process.standardError = FileHandle.nullDevice
 
         pipe.fileHandleForReading.readabilityHandler = { [weak self] handle in
             let data = handle.availableData
-            guard !data.isEmpty else { return }
-            self?.ingest(data)
+            guard !data.isEmpty else {
+                handle.readabilityHandler = nil
+                return
+            }
+            self?.streamQueue.async { [weak self] in
+                self?.ingest(data, generation: generation)
+            }
+        }
+        process.terminationHandler = { [weak self, weak process] _ in
+            guard let process else { return }
+            self?.streamQueue.async { [weak self] in
+                self?.handleStreamTermination(process, generation: generation)
+            }
         }
 
         do {
             try process.run()
             streamProcess = process
         } catch {
+            pipe.fileHandleForReading.readabilityHandler = nil
+            streamPipe = nil
             print("[Adapter] failed to start stream: \(error)")
+            scheduleRestart(generation: generation)
         }
     }
 
-    func stopListening() {
-        streamProcess?.terminate()
+    private func stopStream() {
+        shouldRestart = false
+        streamGeneration &+= 1
+        let process = streamProcess
+        streamPipe?.fileHandleForReading.readabilityHandler = nil
+        process?.terminationHandler = nil
+        streamPipe = nil
+        streamProcess = nil
+        streamBuffer.removeAll(keepingCapacity: false)
+        merged.removeAll(keepingCapacity: false)
+        process?.terminate()
+    }
+
+    private func handleStreamTermination(_ process: Process, generation: UInt) {
+        guard generation == streamGeneration, streamProcess === process else { return }
         streamPipe?.fileHandleForReading.readabilityHandler = nil
         streamPipe = nil
         streamProcess = nil
+        streamBuffer.removeAll(keepingCapacity: false)
+        merged.removeAll(keepingCapacity: false)
+        publishEmpty(generation: generation)
+        scheduleRestart(generation: generation)
+    }
+
+    private func scheduleRestart(generation: UInt) {
+        guard shouldRestart, generation == streamGeneration else { return }
+        streamQueue.asyncAfter(deadline: .now() + 0.5) { [weak self] in
+            guard let self,
+                  self.shouldRestart,
+                  generation == self.streamGeneration,
+                  self.streamProcess == nil else { return }
+            self.startStream()
+        }
     }
 
     // MARK: - Stream parsing
 
     /// Buffers stdout and processes each complete newline-delimited JSON line.
-    private func ingest(_ data: Data) {
+    private func ingest(_ data: Data, generation: UInt) {
+        guard generation == streamGeneration, shouldRestart else { return }
         streamBuffer.append(data)
         while let newline = streamBuffer.firstIndex(of: 0x0A) {
             let lineData = streamBuffer.subdata(in: streamBuffer.startIndex..<newline)
@@ -121,21 +184,19 @@ final class AdapterMediaService: MediaServiceProtocol, @unchecked Sendable {
     }
 
     private func publish(from dict: [String: Any]) {
+        let generation = streamGeneration
         let title = dict["title"] as? String ?? ""
         // No title → treat as nothing playing.
         guard !title.isEmpty else {
-            DispatchQueue.main.async { [weak self] in
-                self?.nowPlayingSubject.send(.empty)
-                self?.isPlayingSubject.send(false)
-            }
+            publishEmpty(generation: generation)
             return
         }
 
         let artist = dict["artist"] as? String ?? ""
         let album = dict["album"] as? String ?? ""
         let duration = (dict["duration"] as? NSNumber)?.doubleValue ?? 0
-        let elapsed = (dict["elapsedTime"] as? NSNumber)?.doubleValue ?? 0
         let playing = (dict["playing"] as? Bool) ?? false
+        let elapsed = currentElapsedTime(from: dict, duration: duration, isPlaying: playing)
 
         var artwork: NSImage?
         if let b64 = dict["artworkData"] as? String,
@@ -154,9 +215,51 @@ final class AdapterMediaService: MediaServiceProtocol, @unchecked Sendable {
         )
 
         DispatchQueue.main.async { [weak self] in
-            self?.nowPlayingSubject.send(info)
-            self?.isPlayingSubject.send(playing)
+            guard let self else { return }
+            self.streamQueue.async { [weak self] in
+                guard let self,
+                      generation == self.streamGeneration,
+                      self.shouldRestart else { return }
+                DispatchQueue.main.async { [weak self] in
+                    self?.nowPlayingSubject.send(info)
+                    self?.isPlayingSubject.send(playing)
+                }
+            }
         }
+    }
+
+    private func publishEmpty(generation: UInt) {
+        DispatchQueue.main.async { [weak self] in
+            guard let self else { return }
+            self.streamQueue.async { [weak self] in
+                guard let self,
+                      generation == self.streamGeneration,
+                      self.shouldRestart else { return }
+                DispatchQueue.main.async { [weak self] in
+                    self?.nowPlayingSubject.send(.empty)
+                    self?.isPlayingSubject.send(false)
+                }
+            }
+        }
+    }
+
+    private func currentElapsedTime(
+        from dict: [String: Any],
+        duration: TimeInterval,
+        isPlaying: Bool
+    ) -> TimeInterval {
+        let anchor = (dict["elapsedTime"] as? NSNumber)?.doubleValue ?? 0
+        let clamp: (TimeInterval) -> TimeInterval = { value in
+            let value = max(0, value)
+            return duration > 0 ? min(value, duration) : value
+        }
+        guard isPlaying,
+              let timestampText = dict["timestamp"] as? String,
+              let timestamp = ISO8601DateFormatter().date(from: timestampText) else {
+            return clamp(anchor)
+        }
+        let rate = (dict["playbackRate"] as? NSNumber)?.doubleValue ?? 1
+        return clamp(anchor + max(0, Date().timeIntervalSince(timestamp)) * rate)
     }
 
     // MARK: - Control (one-shot child processes)
@@ -166,8 +269,8 @@ final class AdapterMediaService: MediaServiceProtocol, @unchecked Sendable {
         static let play = 0
         static let pause = 1
         static let togglePlayPause = 2
-        static let nextTrack = 3
-        static let previousTrack = 4
+        static let nextTrack = 4
+        static let previousTrack = 5
     }
 
     func play() { runAdapter(["send", "\(Command.play)"]) }
@@ -183,7 +286,8 @@ final class AdapterMediaService: MediaServiceProtocol, @unchecked Sendable {
     }
 
     /// The adapter has no volume command, so drive the system output volume.
-    func setVolume(_ volume: Float) {
+    @discardableResult
+    func setVolume(_ volume: Float) -> Bool {
         SystemAudio.setVolume(volume)
     }
 

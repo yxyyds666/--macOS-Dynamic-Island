@@ -8,6 +8,7 @@ struct MusicPanel: View {
     /// The volume slider only shows in the full expanded layout; the peek drape
     /// hides it to stay compact.
     var showVolume: Bool = false
+    var compact: Bool = false
     var focused: Bool = true
     @State private var isScrubbing = false
     @State private var scrubTime: TimeInterval = 0
@@ -20,7 +21,7 @@ struct MusicPanel: View {
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 14) {
+        VStack(alignment: .leading, spacing: compact ? 8 : 14) {
             HStack(spacing: 14) {
                 artwork
                 VStack(alignment: .leading, spacing: 3) {
@@ -70,13 +71,22 @@ struct MusicPanel: View {
                 .foregroundStyle(.white.opacity(0.5))
             }
 
-            // Transport
-            HStack(spacing: 34) {
-                Spacer(minLength: 0)
-                controlButton("backward.fill", size: 18) { appState.previousTrack() }
-                controlButton(appState.isPlaying ? "pause.fill" : "play.fill", size: 30) { appState.togglePlayPause() }
-                controlButton("forward.fill", size: 18) { appState.nextTrack() }
-                Spacer(minLength: 0)
+            if !compact {
+                HStack(spacing: 34) {
+                    Spacer(minLength: 0)
+                    controlButton("backward.fill", size: 18) { appState.previousTrack() }
+                    controlButton(appState.isPlaying ? "pause.fill" : "play.fill", size: 30) { appState.togglePlayPause() }
+                    controlButton("forward.fill", size: 18) { appState.nextTrack() }
+                    Spacer(minLength: 0)
+                }
+            } else {
+                HStack(spacing: 28) {
+                    Spacer(minLength: 0)
+                    controlButton("backward.fill", size: 16) { appState.previousTrack() }
+                    controlButton(appState.isPlaying ? "pause.fill" : "play.fill", size: 25) { appState.togglePlayPause() }
+                    controlButton("forward.fill", size: 16) { appState.nextTrack() }
+                    Spacer(minLength: 0)
+                }
             }
 
             // Volume and full lyrics only in expanded layout.
@@ -93,8 +103,11 @@ struct MusicPanel: View {
             Spacer(minLength: 0)
         }
         .opacity(focused ? 1 : 0.62)
-        .animation(.easeInOut(duration: AppConstants.moduleSwitchDuration), value: focused)
-        .onAppear { syncArtworkAnimation() }
+        .animation(.interactiveSpring(response: 0.32, dampingFraction: 0.8, blendDuration: 0.08), value: focused)
+        .onAppear {
+            if showVolume { appState.syncVolumeFromSystem() }
+            syncArtworkAnimation()
+        }
         .onChange(of: appState.isPlaying) { _, _ in syncArtworkAnimation() }
         .onChange(of: appState.songTitle) { _, _ in
             artworkBreathing = false

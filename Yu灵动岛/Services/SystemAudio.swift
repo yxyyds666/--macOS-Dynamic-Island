@@ -45,18 +45,19 @@ enum SystemAudio {
         return status == noErr ? min(max(volume, 0), 1) : nil
     }
 
-    /// Sets the output volume, clamped to 0...1. No-op if unsettable.
-    static func setVolume(_ value: Float) {
-        guard let device = defaultOutputDevice() else { return }
+    /// Sets the output volume, clamped to 0...1, and reports whether HAL accepted it.
+    @discardableResult
+    static func setVolume(_ value: Float) -> Bool {
+        guard let device = defaultOutputDevice() else { return false }
         var address = volumeAddress()
-        guard AudioObjectHasProperty(device, &address) else { return }
+        guard AudioObjectHasProperty(device, &address) else { return false }
 
         var isSettable = DarwinBoolean(false)
         guard AudioObjectIsPropertySettable(device, &address, &isSettable) == noErr,
-              isSettable.boolValue else { return }
+              isSettable.boolValue else { return false }
 
         var volume = Float32(min(max(value, 0), 1))
         let size = UInt32(MemoryLayout<Float32>.size)
-        AudioObjectSetPropertyData(device, &address, 0, nil, size, &volume)
+        return AudioObjectSetPropertyData(device, &address, 0, nil, size, &volume) == noErr
     }
 }

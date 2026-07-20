@@ -7,30 +7,42 @@ extension Notification.Name {
 }
 
 final class SettingsManager: @unchecked Sendable {
+    enum LaunchAtLoginStatus: Equatable {
+        case disabled
+        case enabled
+        case requiresApproval
+        case unavailable
+    }
+
     static let shared = SettingsManager()
 
     private let defaults = UserDefaults.standard
 
-    /// Backed by `SMAppService` (macOS 13+) rather than a plain flag, so the
-    /// getter reflects the real login-item state and the setter registers or
-    /// unregisters the helper.
-    var launchAtLogin: Bool {
-        get { SMAppService.mainApp.status == .enabled }
-        set {
-            do {
-                if newValue {
-                    if SMAppService.mainApp.status != .enabled {
-                        try SMAppService.mainApp.register()
-                    }
-                } else {
-                    if SMAppService.mainApp.status == .enabled {
-                        try SMAppService.mainApp.unregister()
-                    }
-                }
-            } catch {
-                print("Failed to update launch-at-login: \(error)")
-            }
+    var launchAtLoginStatus: LaunchAtLoginStatus {
+        switch SMAppService.mainApp.status {
+        case .enabled: return .enabled
+        case .requiresApproval: return .requiresApproval
+        case .notRegistered: return .disabled
+        case .notFound: return .unavailable
+        @unknown default: return .unavailable
         }
+    }
+
+    var launchAtLogin: Bool {
+        launchAtLoginStatus == .enabled
+    }
+
+    @discardableResult
+    func setLaunchAtLogin(_ enabled: Bool) throws -> LaunchAtLoginStatus {
+        let service = SMAppService.mainApp
+        if enabled {
+            if service.status == .notRegistered {
+                try service.register()
+            }
+        } else if service.status == .enabled || service.status == .requiresApproval {
+            try service.unregister()
+        }
+        return launchAtLoginStatus
     }
 
     var showMusicModule: Bool {

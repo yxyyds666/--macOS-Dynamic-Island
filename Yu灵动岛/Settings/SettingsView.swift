@@ -1,11 +1,14 @@
 import SwiftUI
 
 struct SettingsView: View {
+    let onSave: () -> Void
     @State private var launchAtLogin = false
     @State private var showMusicModule = true
     @State private var showFileModule = true
     @State private var defaultModule: NotchModule = .music
     @State private var animationSpeed: Double = 1.0
+    @State private var saveError: String?
+    @State private var loginStatus: SettingsManager.LaunchAtLoginStatus = .disabled
     
     private let settings = SettingsManager.shared
     
@@ -17,7 +20,19 @@ struct SettingsView: View {
             // General
             GroupBox("通用") {
                 VStack(alignment: .leading, spacing: 12) {
-                    Toggle("开机启动", isOn: $launchAtLogin)
+                    Toggle("开机启动", isOn: Binding(
+                        get: { launchAtLogin },
+                        set: { launchAtLogin = $0 }
+                    ))
+                    if loginStatus == .requiresApproval {
+                        Text("已注册，但需要在系统设置中批准")
+                            .font(.system(size: 11))
+                            .foregroundStyle(.orange)
+                    } else if loginStatus == .unavailable {
+                        Text("当前应用不支持开机启动")
+                            .font(.system(size: 11))
+                            .foregroundStyle(.secondary)
+                    }
                     Toggle("显示音乐模块", isOn: Binding(
                         get: { showMusicModule },
                         set: { newValue in
@@ -64,19 +79,27 @@ struct SettingsView: View {
             Spacer()
             
             // Save button
-            HStack {
-                Spacer()
-                Button("保存") {
-                    save()
-                    NSApp.keyWindow?.close()
+            VStack(alignment: .trailing, spacing: 8) {
+                if let saveError {
+                    Text(saveError)
+                        .font(.system(size: 11))
+                        .foregroundStyle(.red)
+                        .frame(maxWidth: .infinity, alignment: .leading)
                 }
-                .keyboardShortcut(.return, modifiers: .command)
+                HStack {
+                    Spacer()
+                    Button("保存") {
+                        if save() { NSApp.keyWindow?.close() }
+                    }
+                    .keyboardShortcut(.return, modifiers: .command)
+                }
             }
         }
         .padding(20)
         .frame(width: 360, height: 400)
         .onAppear {
             loadSettings()
+            loginStatus = settings.launchAtLoginStatus
         }
     }
     
@@ -100,19 +123,32 @@ struct SettingsView: View {
         module == .music ? showMusicModule : showFileModule
     }
 
-    private func save() {
+    private func save() -> Bool {
         if !showMusicModule && !showFileModule {
             showMusicModule = true
         }
         clampDefaultModule()
-        settings.launchAtLogin = launchAtLogin
+        saveError = nil
+        do {
+            let status = try settings.setLaunchAtLogin(launchAtLogin)
+            loginStatus = status
+            launchAtLogin = status == .enabled
+            if status == .requiresApproval {
+                saveError = "已注册，请在系统设置的登录项中批准"
+                return false
+            }
+        } catch {
+            launchAtLogin = settings.launchAtLogin
+            saveError = "无法更新开机启动：\(error.localizedDescription)"
+            return false
+        }
         settings.showMusicModule = showMusicModule
         settings.showFileModule = showFileModule
         settings.defaultModule = defaultModule
         settings.animationSpeed = animationSpeed
-        // Re-read launchAtLogin in case SMAppService rejected the change.
-        launchAtLogin = settings.launchAtLogin
         NotificationCenter.default.post(name: .settingsDidChange, object: nil)
+        onSave()
+        return true
     }
 }
 

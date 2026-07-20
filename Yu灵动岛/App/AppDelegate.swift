@@ -10,6 +10,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     var appState: AppState?
     private var cancellables = Set<AnyCancellable>()
     private var lyricRequestGeneration = 0
+    private var lyricFetchTask: Task<Void, Never>?
     private var pendingLyricIdentity: String?
 
     func applicationDidFinishLaunching(_ notification: Notification) {
@@ -54,7 +55,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                             elapsedTime: state.currentTime,
                             isPlaying: state.isPlaying
                         ),
-                        into: state
+                        into: state,
+                        forceRefresh: true
                     )
                 }
         )
@@ -101,7 +103,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                     guard let state else { return }
                     // Detect a track change by identity (title + artist) so we
                     // can pop the info capsule and refresh lyrics exactly once.
-                    let changed = info.title != state.songTitle || info.artist != state.artistName
+                    let previousIdentity = self?.lyricIdentity(
+                        title: state.songTitle,
+                        artist: state.artistName,
+                        album: state.albumName
+                    )
+                    let identity = self?.lyricIdentity(for: info)
+                    let changed = identity != previousIdentity
                     let hadTrack = !state.songTitle.isEmpty
 
                     state.songTitle = info.title
@@ -113,7 +121,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                     state.isPlaying = info.isPlaying
                     self?.menuBarManager?.updateIcon()
 
-                    if changed {
+                    if info.title.isEmpty {
+                        self?.cancelLyricFetch()
+                        self?.pendingLyricIdentity = nil
+                        state.resetLyrics()
+                    } else if changed {
+                        self?.cancelLyricFetch()
                         // New song: clear stale lyrics and start loading only when
                         // enough metadata is available for a useful lookup.
                         state.resetLyrics()
@@ -122,12 +135,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                             self?.fetchLyrics(for: info, into: state)
                         } else {
                             state.setLyricsLoading()
-                            self?.pendingLyricIdentity = self?.lyricIdentity(for: info)
+                            self?.pendingLyricIdentity = identity
                         }
                         if hadTrack { state.trackDidChange() }
-                    } else if !info.title.isEmpty,
-                              state.lyricsState == .loading,
-                              self?.pendingLyricIdentity == self?.lyricIdentity(for: info),
+                    } else if state.lyricsState == .loading,
+                              self?.pendingLyricIdentity == identity,
                               info.duration > 0 {
                         self?.pendingLyricIdentity = nil
                         self?.fetchLyrics(for: info, into: state)
@@ -139,27 +151,42 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     private func lyricIdentity(for info: NowPlayingInfo) -> String {
-        "\(info.title)|\(info.artist)|\(info.album)"
+        lyricIdentity(title: info.title, artist: info.artist, album: info.album)
     }
 
-    /// the track hasn't changed again by the time they arrive.
-    private func fetchLyrics(for info: NowPlayingInfo, into state: AppState) {
+    private func lyricIdentity(title: String, artist: String, album: String) -> String {
+        "\(title)|\(artist)|\(album)"
+    }
+
+    private func cancelLyricFetch() {
         lyricRequestGeneration += 1
+        lyricFetchTask?.cancel()
+        lyricFetchTask = nil
+    }
+
+    /// Applies fetched lyrics only if the track has not changed while they arrive.
+    private func fetchLyrics(for info: NowPlayingInfo, into state: AppState, forceRefresh: Bool = false) {
+        cancelLyricFetch()
         let generation = lyricRequestGeneration
         state.setLyricsLoading()
-        Task { [weak self, weak state] in
+        lyricFetchTask = Task { [weak self, weak state] in
             let result = await LyricsService.shared.fetch(
                 title: info.title,
                 artist: info.artist,
                 album: info.album,
                 duration: info.duration,
-                forceRefresh: false
+                forceRefresh: forceRefresh
             )
+            guard !Task.isCancelled else { return }
             await MainActor.run {
                 guard let self, let state,
                       self.lyricRequestGeneration == generation,
-                      state.songTitle == info.title,
-                      state.artistName == info.artist else { return }
+                      self.lyricIdentity(
+                        title: state.songTitle,
+                        artist: state.artistName,
+                        album: state.albumName
+                      ) == self.lyricIdentity(for: info) else { return }
+                self.lyricFetchTask = nil
                 state.applyLyricsResult(result)
             }
         }
@@ -184,6 +211,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     func applicationWillTerminate(_ notification: Notification) {
+        cancelLyricFetch()
         mediaService?.stopListening()
         appState?.stopProgressTimer()
     }

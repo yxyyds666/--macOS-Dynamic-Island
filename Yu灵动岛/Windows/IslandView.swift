@@ -6,8 +6,8 @@ struct IslandView: View {
     @Bindable var appState: AppState
 
     private var mode: IslandMode { appState.islandMode }
-    private var notchWidth: CGFloat { NSScreen.main?.notchWidth ?? AppConstants.notchWidth }
-    private var notchHeight: CGFloat { NSScreen.main?.notchHeight ?? AppConstants.notchHeight }
+    private var notchWidth: CGFloat { appState.notchSize.width }
+    private var notchHeight: CGFloat { appState.notchSize.height }
 
     private var topCornerRadius: CGFloat {
         mode == .idle ? AppConstants.notchCornerRadius : AppConstants.islandTopCornerRadius
@@ -21,24 +21,20 @@ struct IslandView: View {
         }
     }
 
-    private var wrapsAroundNotch: Bool { mode == .expanded || mode == .activity || mode == .playing }
+    // Every state renders one solid shape that covers the physical notch — no
+    // cutout, no gap. The top edge stays flush with the screen with a small
+    // concave shoulder; the panel simply drapes further down as it grows.
+    private var islandShape: NotchShape {
+        NotchShape(topCornerRadius: topCornerRadius, bottomCornerRadius: bottomCornerRadius)
+    }
 
     @ViewBuilder
     private func background(_ fill: some ShapeStyle) -> some View {
-        if wrapsAroundNotch {
-            ExpandedNotchShape(notchCutoutWidth: notchWidth, notchCutoutHeight: notchHeight)
-                .fill(fill)
-        } else {
-            NotchShape(topCornerRadius: topCornerRadius, bottomCornerRadius: bottomCornerRadius)
-                .fill(fill)
-        }
+        islandShape.fill(fill)
     }
 
     private var clip: AnyShape {
-        if wrapsAroundNotch {
-            return AnyShape(ExpandedNotchShape(notchCutoutWidth: notchWidth, notchCutoutHeight: notchHeight))
-        }
-        return AnyShape(NotchShape(topCornerRadius: topCornerRadius, bottomCornerRadius: bottomCornerRadius))
+        AnyShape(islandShape)
     }
 
     var body: some View {
@@ -48,11 +44,11 @@ struct IslandView: View {
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
         .clipShape(clip)
-        .contentShape(clip)
+        .contentShape(Rectangle())
         .onTapGesture {
             if mode != .expanded { appState.advanceReveal() }
         }
-        .animation(.easeInOut(duration: 0.18), value: mode)
+        .animation(.interactiveSpring(response: 0.34, dampingFraction: 0.78, blendDuration: 0.08), value: mode)
     }
 
     @ViewBuilder
@@ -78,14 +74,14 @@ struct IslandView: View {
         Group {
             switch appState.currentModule {
             case .music:
-                MusicPanel(appState: appState)
+                MusicPanel(appState: appState, compact: true)
             case .file:
                 FilePanel(appState: appState, compact: true, focused: true)
             }
         }
-        .padding(.top, notchHeight - 8)
-        .padding(.horizontal, 20)
-        .padding(.bottom, 20)
+        .padding(.top, notchHeight + 10)
+        .padding(.horizontal, 24)
+        .padding(.bottom, 14)
         .transition(.move(edge: .top).combined(with: .opacity))
     }
 

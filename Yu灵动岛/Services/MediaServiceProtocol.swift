@@ -11,7 +11,7 @@ protocol MediaServiceProtocol: AnyObject {
     func nextTrack()
     func previousTrack()
     func seek(to time: TimeInterval)
-    func setVolume(_ volume: Float)
+    @discardableResult func setVolume(_ volume: Float) -> Bool
     
     func startListening()
     func stopListening()

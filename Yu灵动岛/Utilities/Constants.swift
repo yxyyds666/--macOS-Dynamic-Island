@@ -21,14 +21,14 @@ enum AppConstants {
     static var islandPlayingWidth: CGFloat { notchWidth + 2 * islandPlayingWingWidth }
     static let islandPlayingHeight: CGFloat = notchHeight
 
-    // Hover state: a subtle bulge around the notch (visual only, no content).
-    static let islandHoverWidth: CGFloat = 300
-    static let islandHoverHeight: CGFloat = 52
+    // Hover state: a shallow wrap that grows around the physical notch.
+    static let islandHoverWingWidth: CGFloat = 72
+    static let islandHoverHeightExtra: CGFloat = 14
 
-    // Peek state: clicked once and the music player drapes straight down.
-    // A shallow "chin" — short vertically so it doesn't drop down far.
-    static let islandPeekWidth: CGFloat = 300
-    static let islandPeekHeight: CGFloat = 200
+    // Peek state: a wider, shallower drape so the artwork and controls sit below
+    // the physical notch without wasting vertical space.
+    static let islandPeekWingWidth: CGFloat = 112
+    static let islandPeekHeight: CGFloat = 172
     static let islandCornerRadius: CGFloat = 24
 
     // Activity state: a horizontal live-activity capsule wrapping AROUND the
@@ -84,20 +84,35 @@ enum IslandMode {
     case peek
     case expanded
 
-    var size: CGSize {
+    func size(notchSize: CGSize) -> CGSize {
         switch self {
         case .idle:
-            return CGSize(width: AppConstants.notchWidth, height: AppConstants.notchHeight)
+            return notchSize
         case .playing:
-            return CGSize(width: AppConstants.islandPlayingWidth, height: AppConstants.islandPlayingHeight)
+            return CGSize(
+                width: notchSize.width + 2 * AppConstants.islandPlayingWingWidth,
+                height: notchSize.height
+            )
         case .hover:
-            return CGSize(width: AppConstants.islandHoverWidth, height: AppConstants.islandHoverHeight)
+            return CGSize(
+                width: notchSize.width + 2 * AppConstants.islandHoverWingWidth,
+                height: notchSize.height + AppConstants.islandHoverHeightExtra
+            )
         case .activity:
-            return CGSize(width: AppConstants.islandActivityWidth, height: AppConstants.islandActivityHeight)
+            return CGSize(
+                width: notchSize.width + 2 * AppConstants.islandActivityWingWidth,
+                height: AppConstants.islandActivityHeight
+            )
         case .peek:
-            return CGSize(width: AppConstants.islandPeekWidth, height: AppConstants.islandPeekHeight)
+            return CGSize(
+                width: notchSize.width + 2 * AppConstants.islandPeekWingWidth,
+                height: AppConstants.islandPeekHeight
+            )
         case .expanded:
-            return CGSize(width: AppConstants.expandPanelWidth, height: AppConstants.expandPanelHeight)
+            return CGSize(
+                width: notchSize.width + 2 * AppConstants.expandSidePanelWidth,
+                height: AppConstants.expandPanelHeight
+            )
         }
     }
 
