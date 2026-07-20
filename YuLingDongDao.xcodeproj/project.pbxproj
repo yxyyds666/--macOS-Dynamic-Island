@@ -320,7 +320,7 @@
 					"@executable_path/../Frameworks",
 				);
 				PRODUCT_BUNDLE_IDENTIFIER = com.yuxi.yulingdongdao;
-				PRODUCT_NAME = "Yu灵动岛";
+				PRODUCT_NAME = "岛一下";
 				SDKROOT = macosx;
 			};
 			name = Release;
@@ -402,7 +402,7 @@
 					"@executable_path/../Frameworks",
 				);
 				PRODUCT_BUNDLE_IDENTIFIER = com.yuxi.yulingdongdao;
-				PRODUCT_NAME = "Yu灵动岛";
+				PRODUCT_NAME = "岛一下";
 				SDKROOT = macosx;
 			};
 			name = Debug;

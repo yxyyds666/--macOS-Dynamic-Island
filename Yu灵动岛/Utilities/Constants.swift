@@ -8,7 +8,7 @@ extension Notification.Name {
 }
 
 enum AppConstants {
-    static let appName = "Yu灵动岛"
+    static let appName = "岛一下"
     static let bundleIdentifier = "com.yuxi.yulingdongdao"
 
     // Physical notch dimensions, measured from this MacBook via the screen's
