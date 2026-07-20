@@ -2,6 +2,9 @@ import Foundation
 
 extension Notification.Name {
     static let lyricsRetryRequested = Notification.Name("com.yuxi.yulingdongdao.lyricsRetryRequested")
+    /// Posted from the expanded island's tab bar to ask the menu-bar controller
+    /// to open the Settings window (the island can't own that window itself).
+    static let openSettingsRequested = Notification.Name("com.yuxi.yulingdongdao.openSettingsRequested")
 }
 
 enum AppConstants {
@@ -21,14 +24,16 @@ enum AppConstants {
     static var islandPlayingWidth: CGFloat { notchWidth + 2 * islandPlayingWingWidth }
     static let islandPlayingHeight: CGFloat = notchHeight
 
-    // Hover state: a subtle bulge around the notch (visual only, no content).
-    static let islandHoverWidth: CGFloat = 300
-    static let islandHoverHeight: CGFloat = 52
+    // Hover state: a shallow wrap that grows around the physical notch.
+    static let islandHoverWingWidth: CGFloat = 72
+    static let islandHoverHeightExtra: CGFloat = 14
 
-    // Peek state: clicked once and the music player drapes straight down.
-    // A shallow "chin" — short vertically so it doesn't drop down far.
-    static let islandPeekWidth: CGFloat = 300
-    static let islandPeekHeight: CGFloat = 200
+    // Peek state: a wider drape whose chin is tall enough to clear the physical
+    // notch AND fully show the artwork + track info + scrubber + controls below
+    // it (content starts at ~notchHeight+10, so the chin must exceed that plus
+    // the music panel's own height or the bottom gets clipped by the shape).
+    static let islandPeekWingWidth: CGFloat = 112
+    static let islandPeekHeight: CGFloat = 232
     static let islandCornerRadius: CGFloat = 24
 
     // Activity state: a horizontal live-activity capsule wrapping AROUND the
@@ -48,10 +53,26 @@ enum AppConstants {
     // left, files on the right, the physical notch showing through the middle.
     static let expandSidePanelWidth: CGFloat = 320
     static var expandPanelWidth: CGFloat { notchWidth + 2 * expandSidePanelWidth }
-    static let expandPanelHeight: CGFloat = 250
+    static let expandPanelHeight: CGFloat = 340
     static let expandPanelCornerRadius: CGFloat = 24
     // Rounded inner corners of the notch cutout in the expanded bar.
     static let notchCutoutCornerRadius: CGFloat = 10
+
+    // Fixed-window architecture (boring.notch style): the window is created ONCE
+    // at the largest extent any state can reach and never resizes. All state size
+    // changes happen inside SwiftUI (.frame + spring), which the GPU composites —
+    // no per-frame window resize, no drift/judder, no diagonal "gap".
+    //
+    // The largest state is `expanded`. Shadow padding leaves room on the sides and
+    // bottom so the SwiftUI drop shadow isn't clipped by the window edge. The top
+    // stays flush with the screen (the island grows downward only).
+    static let islandShadowPadding: CGFloat = 24
+    static var fixedWindowWidth: CGFloat { expandPanelWidth + 2 * islandShadowPadding }
+    static var fixedWindowHeight: CGFloat { expandPanelHeight + islandShadowPadding }
+
+    // Collapsed playback (playing, mouse not over): album art + spectrum bars in
+    // the wings, boring.notch style.
+    static let playingArtworkSize: CGFloat = 22
 
     // File transfer limits
     static let maxFileItems = 10
@@ -84,20 +105,35 @@ enum IslandMode {
     case peek
     case expanded
 
-    var size: CGSize {
+    func size(notchSize: CGSize) -> CGSize {
         switch self {
         case .idle:
-            return CGSize(width: AppConstants.notchWidth, height: AppConstants.notchHeight)
+            return notchSize
         case .playing:
-            return CGSize(width: AppConstants.islandPlayingWidth, height: AppConstants.islandPlayingHeight)
+            return CGSize(
+                width: notchSize.width + 2 * AppConstants.islandPlayingWingWidth,
+                height: notchSize.height
+            )
         case .hover:
-            return CGSize(width: AppConstants.islandHoverWidth, height: AppConstants.islandHoverHeight)
+            return CGSize(
+                width: notchSize.width + 2 * AppConstants.islandHoverWingWidth,
+                height: notchSize.height + AppConstants.islandHoverHeightExtra
+            )
         case .activity:
-            return CGSize(width: AppConstants.islandActivityWidth, height: AppConstants.islandActivityHeight)
+            return CGSize(
+                width: notchSize.width + 2 * AppConstants.islandActivityWingWidth,
+                height: AppConstants.islandActivityHeight
+            )
         case .peek:
-            return CGSize(width: AppConstants.islandPeekWidth, height: AppConstants.islandPeekHeight)
+            return CGSize(
+                width: notchSize.width + 2 * AppConstants.islandPeekWingWidth,
+                height: AppConstants.islandPeekHeight
+            )
         case .expanded:
-            return CGSize(width: AppConstants.expandPanelWidth, height: AppConstants.expandPanelHeight)
+            return CGSize(
+                width: notchSize.width + 2 * AppConstants.expandSidePanelWidth,
+                height: AppConstants.expandPanelHeight
+            )
         }
     }
 

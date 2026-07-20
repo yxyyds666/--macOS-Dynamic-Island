@@ -14,6 +14,7 @@
 		4099AFD9CAEDF31B73BB2C48 /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 62A07067F7DBEC128ED7FD70 /* SettingsView.swift */; };
 		414472F25B3039DDF2C54670 /* Constants.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0F6719AA3B4B53CC492AB5D1 /* Constants.swift */; };
 		447706B02A8CA1229D0B5E72 /* LyricLine.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7A7C378F4067BBD1A97D665C /* LyricLine.swift */; };
+		460D85BDFFEA2A84509E7F87 /* AudioSpectrum.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9315E955BFC5B59D4CC69584 /* AudioSpectrum.swift */; };
 		479A4E01FB2BF515213B036F /* PlaybackBars.swift in Sources */ = {isa = PBXBuildFile; fileRef = 03938695D4AE5A84B3A2C891 /* PlaybackBars.swift */; };
 		48937FAC637548F0C585C61F /* DragDropService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3AB0923DA35099F83B584C34 /* DragDropService.swift */; };
 		4BF74AC3D0CEF7CC2FDE2CFE /* FileItem.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9E4E85B407A96BE0CF6E51A4 /* FileItem.swift */; };
@@ -51,6 +52,7 @@
 		7FB02995432C99BD4EE5FC8B /* NowPlayingInfo.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NowPlayingInfo.swift; sourceTree = "<group>"; };
 		861069341C9D750FD215BEE7 /* NotchWindow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotchWindow.swift; sourceTree = "<group>"; };
 		8F7800B3DDAB71F80BDE6571 /* NotchDetector.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotchDetector.swift; sourceTree = "<group>"; };
+		9315E955BFC5B59D4CC69584 /* AudioSpectrum.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AudioSpectrum.swift; sourceTree = "<group>"; };
 		9E4E85B407A96BE0CF6E51A4 /* FileItem.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FileItem.swift; sourceTree = "<group>"; };
 		AC41E8103FB92F6E889B9159 /* YuLingDongDaoApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = YuLingDongDaoApp.swift; sourceTree = "<group>"; };
 		B7A786ED4F8589C758FD220C /* NotchShape.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotchShape.swift; sourceTree = "<group>"; };
@@ -151,6 +153,7 @@
 		983C9C2A8E1854304CA4287E /* Windows */ = {
 			isa = PBXGroup;
 			children = (
+				9315E955BFC5B59D4CC69584 /* AudioSpectrum.swift */,
 				54874BE388E23E952CD888D8 /* CollapsedPlaybackActivity.swift */,
 				438C12786411D743AF62C0BF /* IslandPanels.swift */,
 				527B421EBC590274035F0A53 /* IslandView.swift */,
@@ -278,6 +281,7 @@
 				EAFA3064683BEC6BD4F6560E /* AdapterMediaService.swift in Sources */,
 				DAE3F33BBAC39ACABB50092E /* AppDelegate.swift in Sources */,
 				6E07CE18329592000186C480 /* AppState.swift in Sources */,
+				460D85BDFFEA2A84509E7F87 /* AudioSpectrum.swift in Sources */,
 				DFFD79D362C03BA23078F078 /* CollapsedPlaybackActivity.swift in Sources */,
 				414472F25B3039DDF2C54670 /* Constants.swift in Sources */,
 				48937FAC637548F0C585C61F /* DragDropService.swift in Sources */,

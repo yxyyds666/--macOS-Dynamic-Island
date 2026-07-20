@@ -1,12 +1,15 @@
 import SwiftUI
 
-/// A shape that hugs the physical notch: its top edge is flush with the screen
-/// top, the two top corners curve *inward* (concave) so it reads as growing out
-/// of the notch/bezel, and the bottom corners are normally rounded. As the
-/// island grows the same shape simply drapes further down — the iPhone Dynamic
-/// Island "expand around the notch" feel.
+/// A shape that fully covers the physical notch: the whole top edge is flush
+/// with the screen and spans the full width with SQUARE top corners, so there is
+/// no scoop beside the notch — the black panel sits solidly over the notch and
+/// the bezel around it. Only the bottom corners are rounded. As the island grows
+/// the same shape simply drapes further down.
+///
+/// `topCornerRadius` is kept for API/animation compatibility but no longer insets
+/// the top edge; the top stays square so nothing shows through beside the notch.
 struct NotchShape: Shape {
-    /// Concave radius where the top edge meets the sides (the notch shoulders).
+    /// Retained for compatibility; the top edge is square so this is unused.
     var topCornerRadius: CGFloat
     /// Convex radius of the two bottom corners.
     var bottomCornerRadius: CGFloat
@@ -22,46 +25,34 @@ struct NotchShape: Shape {
     func path(in rect: CGRect) -> Path {
         let w = rect.width
         let h = rect.height
-        let topR = min(topCornerRadius, w / 2, h / 2)
         let botR = min(bottomCornerRadius, w / 2, h / 2)
 
         var path = Path()
 
-        // Start at the very top-left, flush with the screen edge.
+        // Full-width flush top with square corners — covers the notch and the
+        // bezel beside it, no gap.
         path.move(to: CGPoint(x: 0, y: 0))
 
-        // Left shoulder: concave curve dishing inward and down.
-        path.addQuadCurve(
-            to: CGPoint(x: topR, y: topR),
-            control: CGPoint(x: topR, y: 0)
-        )
-
         // Left side straight down.
-        path.addLine(to: CGPoint(x: topR, y: h - botR))
+        path.addLine(to: CGPoint(x: 0, y: h - botR))
 
         // Bottom-left convex corner.
         path.addQuadCurve(
-            to: CGPoint(x: topR + botR, y: h),
-            control: CGPoint(x: topR, y: h)
+            to: CGPoint(x: botR, y: h),
+            control: CGPoint(x: 0, y: h)
         )
 
         // Bottom edge.
-        path.addLine(to: CGPoint(x: w - topR - botR, y: h))
+        path.addLine(to: CGPoint(x: w - botR, y: h))
 
         // Bottom-right convex corner.
         path.addQuadCurve(
-            to: CGPoint(x: w - topR, y: h - botR),
-            control: CGPoint(x: w - topR, y: h)
+            to: CGPoint(x: w, y: h - botR),
+            control: CGPoint(x: w, y: h)
         )
 
-        // Right side straight up.
-        path.addLine(to: CGPoint(x: w - topR, y: topR))
-
-        // Right shoulder: concave curve back up to the top edge.
-        path.addQuadCurve(
-            to: CGPoint(x: w, y: 0),
-            control: CGPoint(x: w - topR, y: 0)
-        )
+        // Right side straight up to the flush top.
+        path.addLine(to: CGPoint(x: w, y: 0))
 
         path.closeSubpath()
         return path
@@ -83,6 +74,14 @@ struct ExpandedNotchShape: Shape {
     var innerRadius: CGFloat = AppConstants.notchCutoutCornerRadius
     /// Radius of the bar's two bottom corners.
     var bottomCornerRadius: CGFloat = AppConstants.expandPanelCornerRadius
+
+    var animatableData: AnimatablePair<CGFloat, CGFloat> {
+        get { AnimatablePair(notchCutoutWidth, notchCutoutHeight) }
+        set {
+            notchCutoutWidth = newValue.first
+            notchCutoutHeight = newValue.second
+        }
+    }
 
     func path(in rect: CGRect) -> Path {
         let w = rect.width

@@ -25,6 +25,7 @@ final class AppState {
     enum ActivityContent: Equatable { case lyrics, trackInfo }
 
     var revealState: RevealState = .idle
+    var notchSize: CGSize = NotchDetector.idleSize()
 
     // Music state
     var isPlaying: Bool = false
@@ -70,7 +71,7 @@ final class AppState {
 
     enum FileDropResult: Equatable {
         case added(Int)
-        case partial(added: Int, skipped: Int)
+        case partial(added: Int, invalid: Int, overflow: Int)
         case full
         case disabled
         case empty
@@ -280,8 +281,9 @@ final class AppState {
             return result
         }
 
-        let fileURLs = urls.filter(\.isFileURL)
-        guard !fileURLs.isEmpty else {
+        let candidates = urls.filter(\.isFileURL)
+        let invalid = urls.count - candidates.count
+        guard !candidates.isEmpty else {
             let result: FileDropResult = .empty
             showFileDropFeedback(for: result)
             return result
@@ -294,15 +296,21 @@ final class AppState {
             return result
         }
 
-        let accepted = Array(fileURLs.prefix(remaining))
-        for url in accepted {
-            addFile(FileItem(url: url))
+        let items = candidates.compactMap(FileItem.init(url:))
+        let rejected = candidates.count - items.count
+        guard !items.isEmpty else {
+            let result: FileDropResult = .empty
+            showFileDropFeedback(for: result)
+            return result
         }
+        let accepted = Array(items.prefix(remaining))
+        for item in accepted { addFile(item) }
         currentModule = .file
 
-        let skipped = fileURLs.count - accepted.count
-        let result: FileDropResult = skipped > 0
-            ? .partial(added: accepted.count, skipped: skipped)
+        let overflow = max(0, items.count - accepted.count)
+        let invalidCount = invalid + rejected
+        let result: FileDropResult = invalidCount > 0 || overflow > 0
+            ? .partial(added: accepted.count, invalid: invalidCount, overflow: overflow)
             : .added(accepted.count)
         showFileDropFeedback(for: result)
         return result
@@ -312,8 +320,11 @@ final class AppState {
         switch result {
         case .added(let count):
             showFileDropFeedback("已添加 \(count) 个文件", isError: false)
-        case .partial(let added, let skipped):
-            showFileDropFeedback("已添加 \(added) 个，\(skipped) 个超出上限", isError: true)
+        case .partial(let added, let invalid, let overflow):
+            var details: [String] = []
+            if invalid > 0 { details.append("\(invalid) 个无效项目") }
+            if overflow > 0 { details.append("\(overflow) 个超出上限") }
+            showFileDropFeedback("已添加 \(added) 个，" + details.joined(separator: "，"), isError: true)
         case .full:
             showFileDropFeedback("文件中转站已满", isError: true)
         case .disabled:
@@ -451,8 +462,17 @@ final class AppState {
     }
 
     func setVolume(_ newValue: Float) {
-        volume = newValue
-        mediaService?.setVolume(newValue)
+        let clamped = min(max(newValue, 0), 1)
+        let previous = volume
+        // Drive the slider from the requested value, not a read-back. CoreAudio
+        // quantizes the written value, so reading it straight back yields a
+        // slightly different number that snaps the thumb away from the finger
+        // mid-drag. Only fall back to the real system value when the write fails.
+        guard mediaService?.setVolume(clamped) == true else {
+            volume = SystemAudio.currentVolume() ?? previous
+            return
+        }
+        volume = clamped
     }
 
     /// Syncs the slider to the actual system output volume so it starts at the
