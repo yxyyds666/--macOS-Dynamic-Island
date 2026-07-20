@@ -1,17 +1,22 @@
 import SwiftUI
 
-/// The island's SwiftUI content. The window owns size/animation; this view fills
-/// it and switches content according to the current reveal/focus state.
+/// The island's SwiftUI content. Following boring.notch, the WINDOW is fixed and
+/// large; this view positions the island panel top-center inside it and animates
+/// every state change (idle / playing / hover / peek / expanded) INSIDE SwiftUI
+/// via `.frame` + a spring. No window resizing — Core Animation composites the
+/// size/shape change on the GPU, so there is no drift, judder, or diagonal gap.
 struct IslandView: View {
     @Bindable var appState: AppState
+    /// Shared namespace so the album artwork morphs smoothly between states.
+    @Namespace private var artworkNS
 
     private var mode: IslandMode { appState.islandMode }
-    private var notchWidth: CGFloat { appState.notchSize.width }
-    private var notchHeight: CGFloat { appState.notchSize.height }
+    private var notchSize: CGSize { appState.notchSize }
+    private var notchWidth: CGFloat { notchSize.width }
+    private var notchHeight: CGFloat { notchSize.height }
 
-    private var topCornerRadius: CGFloat {
-        mode == .idle ? AppConstants.notchCornerRadius : AppConstants.islandTopCornerRadius
-    }
+    /// Current island size for this mode.
+    private var islandSize: CGSize { mode.size(notchSize: notchSize) }
 
     private var bottomCornerRadius: CGFloat {
         switch mode {
@@ -21,47 +26,65 @@ struct IslandView: View {
         }
     }
 
-    // Every state renders one solid shape that covers the physical notch — no
-    // cutout, no gap. The top edge stays flush with the screen with a small
-    // concave shoulder; the panel simply drapes further down as it grows.
     private var islandShape: NotchShape {
-        NotchShape(topCornerRadius: topCornerRadius, bottomCornerRadius: bottomCornerRadius)
+        NotchShape(topCornerRadius: 0, bottomCornerRadius: bottomCornerRadius)
     }
 
-    @ViewBuilder
-    private func background(_ fill: some ShapeStyle) -> some View {
-        islandShape.fill(fill)
-    }
-
-    private var clip: AnyShape {
-        AnyShape(islandShape)
+    // Open grows softly; close settles crisply (critically damped) — the same
+    // split boring.notch uses so the sides never dip and uncover the notch.
+    private var sizeAnimation: Animation {
+        switch mode {
+        case .expanded, .peek, .hover, .activity:
+            return .spring(response: 0.42, dampingFraction: 0.82, blendDuration: 0)
+        case .idle, .playing:
+            return .spring(response: 0.40, dampingFraction: 1.0, blendDuration: 0)
+        }
     }
 
     var body: some View {
+        // Pin the island to the top-center of the (large, fixed) window. The
+        // window top is flush with the screen top, so growth is purely downward.
         ZStack(alignment: .top) {
-            background(.black)
-            content
+            island
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
-        .clipShape(clip)
-        .contentShape(Rectangle())
+    }
+
+    private var island: some View {
+        ZStack(alignment: .top) {
+            islandShape.fill(.black)
+            content
+        }
+        .frame(width: islandSize.width, height: islandSize.height, alignment: .top)
+        .clipShape(islandShape)
+        // Shadow is drawn here (not by the window) so it tracks the animated shape.
+        .shadow(color: .black.opacity(mode == .idle ? 0 : 0.45), radius: 8, y: 3)
+        .contentShape(islandShape)
         .onTapGesture {
             if mode != .expanded { appState.advanceReveal() }
         }
-        .animation(.interactiveSpring(response: 0.34, dampingFraction: 0.78, blendDuration: 0.08), value: mode)
+        .animation(sizeAnimation, value: mode)
+        .animation(sizeAnimation, value: notchWidth)
     }
 
     @ViewBuilder
     private var content: some View {
         switch mode {
-        case .idle, .hover:
+        case .idle:
+            EmptyView()
+        case .hover:
             EmptyView()
         case .playing:
-            CollapsedPlaybackActivity(appState: appState, notchWidth: notchWidth)
+            PlayingCapsule(appState: appState, notchWidth: notchWidth, namespace: artworkNS)
                 .transition(.opacity)
         case .activity:
-            ActivityCapsule(appState: appState, notchWidth: notchWidth, notchHeight: notchHeight)
-                .transition(.opacity)
+            ActivityCapsule(
+                appState: appState,
+                notchWidth: notchWidth,
+                notchHeight: notchHeight,
+                namespace: artworkNS
+            )
+            .transition(.opacity)
         case .peek:
             peekContent
         case .expanded:
@@ -74,7 +97,7 @@ struct IslandView: View {
         Group {
             switch appState.currentModule {
             case .music:
-                MusicPanel(appState: appState, compact: true)
+                MusicPanel(appState: appState, compact: true, namespace: artworkNS)
             case .file:
                 FilePanel(appState: appState, compact: true, focused: true)
             }
@@ -82,7 +105,7 @@ struct IslandView: View {
         .padding(.top, notchHeight + 10)
         .padding(.horizontal, 24)
         .padding(.bottom, 14)
-        .transition(.move(edge: .top).combined(with: .opacity))
+        .transition(.opacity)
     }
 
     private var expandedContent: some View {
@@ -93,7 +116,8 @@ struct IslandView: View {
                         MusicPanel(
                             appState: appState,
                             showVolume: true,
-                            focused: appState.currentModule == .music
+                            focused: appState.currentModule == .music,
+                            namespace: artworkNS
                         )
                         .padding(.horizontal, 12)
                     }
@@ -130,6 +154,6 @@ struct IslandView: View {
             .padding(.top, notchHeight + 10)
             .padding(.trailing, 12)
         }
-        .transition(.move(edge: .top).combined(with: .opacity))
+        .transition(.opacity)
     }
 }

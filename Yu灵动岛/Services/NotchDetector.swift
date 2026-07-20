@@ -42,6 +42,26 @@ struct NotchDetector {
         return NSRect(x: x, y: y, width: size.width, height: size.height)
     }
 
+    /// The largest window extent any island state can reach, based on the real
+    /// notch width plus the expanded wings and shadow padding. The fixed-window
+    /// architecture sizes the window to this once and never resizes it; every
+    /// state change animates inside SwiftUI instead.
+    static func fixedWindowSize() -> CGSize {
+        let notch = idleSize()
+        let width = notch.width + 2 * AppConstants.expandSidePanelWidth + 2 * AppConstants.islandShadowPadding
+        let height = AppConstants.expandPanelHeight + AppConstants.islandShadowPadding
+        return CGSize(width: width, height: height)
+    }
+
+    /// The fixed window frame: centered on the notch, top flush with the screen.
+    static func fixedWindowFrame() -> NSRect {
+        guard let screen = builtInNotchScreen else { return .zero }
+        let size = fixedWindowSize()
+        let x = screen.frame.midX - size.width / 2
+        let y = screen.frame.maxY - size.height
+        return NSRect(x: x, y: y, width: size.width, height: size.height)
+    }
+
     static func expandPanelFrame() -> NSRect {
         guard let screen = builtInNotchScreen else { return .zero }
         let panelWidth = AppConstants.expandPanelWidth

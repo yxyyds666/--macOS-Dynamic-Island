@@ -10,6 +10,8 @@ struct MusicPanel: View {
     var showVolume: Bool = false
     var compact: Bool = false
     var focused: Bool = true
+    /// Shared namespace so the album artwork morphs in from the collapsed states.
+    var namespace: Namespace.ID?
     @State private var isScrubbing = false
     @State private var scrubTime: TimeInterval = 0
     @State private var artworkBreathing = false
@@ -130,24 +132,15 @@ struct MusicPanel: View {
 
     @ViewBuilder
     private var artwork: some View {
-        ZStack {
-            RoundedRectangle(cornerRadius: 14, style: .continuous)
-                .fill(.white.opacity(artworkBreathing ? 0.11 : 0))
-                .frame(width: 74, height: 74)
-                .blur(radius: 5)
-            Group {
-                if let art = appState.albumArt {
-                    Image(nsImage: art).resizable()
-                } else {
-                    RoundedRectangle(cornerRadius: 12).fill(.white.opacity(0.1))
-                        .overlay(Image(systemName: "music.note").font(.system(size: 22)).foregroundStyle(.white.opacity(0.35)))
-                }
-            }
-            .frame(width: 66, height: 66)
-            .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
-            .scaleEffect(artworkBreathing ? 1.025 : 1)
-        }
-        .frame(width: 74, height: 74)
+        let side: CGFloat = compact ? 58 : 66
+        IslandArtwork(
+            appState: appState,
+            size: side,
+            cornerRadius: 12,
+            namespace: namespace
+        )
+        .scaleEffect(artworkBreathing ? 1.025 : 1)
+        .frame(width: side + 8, height: side + 8)
     }
 
 
@@ -356,6 +349,7 @@ struct ActivityCapsule: View {
     @Bindable var appState: AppState
     let notchWidth: CGFloat
     let notchHeight: CGFloat
+    var namespace: Namespace.ID? = nil
     @State private var artworkBreathing = false
 
     var body: some View {
@@ -382,16 +376,12 @@ struct ActivityCapsule: View {
     }
 
     @ViewBuilder private var artwork: some View {
-        ZStack {
-            RoundedRectangle(cornerRadius: 9, style: .continuous)
-                .fill(.white.opacity(artworkBreathing ? 0.12 : 0))
-                .frame(width: 44, height: 44)
-                .blur(radius: 3)
-            Group { if let art = appState.albumArt { Image(nsImage: art).resizable() } else { RoundedRectangle(cornerRadius: 8).fill(.white.opacity(0.12)).overlay(Image(systemName: "music.note").font(.system(size: 14)).foregroundStyle(.white.opacity(0.4))) } }
-                .frame(width: 38, height: 38)
-                .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
-                .scaleEffect(artworkBreathing ? 1.025 : 1)
-        }
+        IslandArtwork(
+            appState: appState,
+            size: 38,
+            cornerRadius: 8,
+            namespace: namespace
+        )
         .frame(width: 44, height: 44)
     }
 

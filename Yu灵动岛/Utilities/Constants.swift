@@ -53,6 +53,22 @@ enum AppConstants {
     // Rounded inner corners of the notch cutout in the expanded bar.
     static let notchCutoutCornerRadius: CGFloat = 10
 
+    // Fixed-window architecture (boring.notch style): the window is created ONCE
+    // at the largest extent any state can reach and never resizes. All state size
+    // changes happen inside SwiftUI (.frame + spring), which the GPU composites —
+    // no per-frame window resize, no drift/judder, no diagonal "gap".
+    //
+    // The largest state is `expanded`. Shadow padding leaves room on the sides and
+    // bottom so the SwiftUI drop shadow isn't clipped by the window edge. The top
+    // stays flush with the screen (the island grows downward only).
+    static let islandShadowPadding: CGFloat = 24
+    static var fixedWindowWidth: CGFloat { expandPanelWidth + 2 * islandShadowPadding }
+    static var fixedWindowHeight: CGFloat { expandPanelHeight + islandShadowPadding }
+
+    // Collapsed playback (playing, mouse not over): album art + spectrum bars in
+    // the wings, boring.notch style.
+    static let playingArtworkSize: CGFloat = 22
+
     // File transfer limits
     static let maxFileItems = 10
 
