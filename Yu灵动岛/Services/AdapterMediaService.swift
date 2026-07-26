@@ -35,6 +35,8 @@ final class AdapterMediaService: MediaServiceProtocol, @unchecked Sendable {
     private var merged: [String: Any] = [:]
     private var streamGeneration: UInt = 0
     private var shouldRestart = false
+    private var primeAttempts = 0
+    private var wakeObserver: NSObjectProtocol?
 
     init() {
         let resources = Bundle.main.resourceURL?.appendingPathComponent("MediaRemoteAdapter")
@@ -42,6 +44,26 @@ final class AdapterMediaService: MediaServiceProtocol, @unchecked Sendable {
         let framework = resources?.appendingPathComponent("MediaRemoteAdapter.framework")
         self.scriptPath = script?.path
         self.frameworkPath = framework?.path
+
+        // MediaRemote subscriptions can go stale across sleep/wake: music keeps
+        // playing but no further events arrive. Restart the stream shortly
+        // after wake (small delay lets mediaremoted settle first).
+        wakeObserver = NSWorkspace.shared.notificationCenter.addObserver(
+            forName: NSWorkspace.didWakeNotification, object: nil, queue: nil
+        ) { [weak self] _ in
+            guard let self else { return }
+            self.streamQueue.asyncAfter(deadline: .now() + 2) { [weak self] in
+                guard let self, self.shouldRestart else { return }
+                self.stopStream()
+                self.startStream()
+            }
+        }
+    }
+
+    deinit {
+        if let wakeObserver {
+            NSWorkspace.shared.notificationCenter.removeObserver(wakeObserver)
+        }
     }
 
     var isAvailable: Bool {
@@ -106,12 +128,77 @@ final class AdapterMediaService: MediaServiceProtocol, @unchecked Sendable {
         do {
             try process.run()
             streamProcess = process
+            // Ask for the current state explicitly: the stream's initial dump
+            // is occasionally empty right after launch/login/wake, and steady
+            // playback produces no further events to recover from.
+            primeAttempts = 0
+            schedulePrime(generation: generation)
         } catch {
             pipe.fileHandleForReading.readabilityHandler = nil
             streamPipe = nil
             print("[Adapter] failed to start stream: \(error)")
             scheduleRestart(generation: generation)
         }
+    }
+
+    // MARK: - State priming (one-shot `get` fallback)
+
+    /// Retry delays after a stream (re)start while no track has arrived.
+    private static let primeDelays: [TimeInterval] = [1.0, 3.0, 8.0]
+
+    /// Must be called on `streamQueue`.
+    private func schedulePrime(generation: UInt) {
+        guard primeAttempts < Self.primeDelays.count else { return }
+        let delay = Self.primeDelays[primeAttempts]
+        primeAttempts += 1
+        streamQueue.asyncAfter(deadline: .now() + delay) { [weak self] in
+            guard let self,
+                  generation == self.streamGeneration,
+                  self.shouldRestart else { return }
+            // The stream already delivered a track — nothing to recover.
+            if (self.merged["title"] as? String)?.isEmpty == false { return }
+            self.runPrimeGet(generation: generation)
+        }
+    }
+
+    private func runPrimeGet(generation: UInt) {
+        guard isAvailable, let scriptPath, let frameworkPath else { return }
+        let process = Process()
+        process.executableURL = URL(fileURLWithPath: perlPath)
+        process.arguments = [scriptPath, frameworkPath, "get"]
+        let pipe = Pipe()
+        process.standardOutput = pipe
+        process.standardError = FileHandle.nullDevice
+        process.terminationHandler = { [weak self] _ in
+            let data = pipe.fileHandleForReading.readDataToEndOfFile()
+            self?.streamQueue.async { [weak self] in
+                guard let self,
+                      generation == self.streamGeneration,
+                      self.shouldRestart else { return }
+                self.applyPrimed(data, generation: generation)
+            }
+        }
+        do { try process.run() } catch {
+            schedulePrime(generation: generation)
+        }
+    }
+
+    /// `get` prints the bare payload object (unlike the stream's
+    /// `{"payload": …}` lines — accept both). Only applied while the stream
+    /// still has no track, so a faster stream message always wins.
+    private func applyPrimed(_ data: Data, generation: UInt) {
+        guard (merged["title"] as? String)?.isEmpty != false else { return }
+        guard let obj = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
+            schedulePrime(generation: generation)
+            return
+        }
+        let payload = (obj["payload"] as? [String: Any]) ?? obj
+        guard let title = payload["title"] as? String, !title.isEmpty else {
+            schedulePrime(generation: generation)
+            return
+        }
+        merged = payload
+        publish(from: merged)
     }
 
     private func stopStream() {
