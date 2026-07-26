@@ -258,6 +258,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                     state.updateSource(bundleID: info.sourceBundleID)
                     self?.menuBarManager?.updateIcon()
 
+                    // Pinning is a playback-only affordance; once playback stops
+                    // a pinned island would otherwise stay stuck on screen.
+                    if !info.isPlaying || info.title.isEmpty {
+                        self?.screenControllers.values.forEach { $0.island.releasePinIfNeeded() }
+                    }
+
                     if info.title.isEmpty {
                         self?.cancelLyricFetch()
                         self?.pendingLyricIdentity = nil

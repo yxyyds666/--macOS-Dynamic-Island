@@ -101,18 +101,50 @@ final class IslandState {
         collapse()
     }
 
-    /// Toggle the hover-capsule pin (right-click). Only meaningful while the
-    /// capsule is showing; other states ignore it.
-    func togglePinned() {
+    /// Whether right-click may pin right now: only while the hover capsule is
+    /// showing AND a track is playing. Pinning an empty capsule would leave a
+    /// blank island stuck on screen with no content to read.
+    var canPin: Bool {
         switch revealState {
         case .activity, .hover:
-            isPinned.toggle()
-            // A pinned track-info capsule must not auto-dismiss from under
-            // the pin.
-            if isPinned { cancelActivityAutoDismiss() }
+            return appState.isPlaying && !appState.songTitle.isEmpty
         default:
-            break
+            return false
         }
+    }
+
+    /// Toggle the hover-capsule pin (right-click). Unpinning is always allowed
+    /// so playback stopping while pinned can never trap the island.
+    func togglePinned() {
+        if isPinned {
+            isPinned = false
+            return
+        }
+        guard canPin else { return }
+        isPinned = true
+        // A pinned track-info capsule must not auto-dismiss from under the pin.
+        cancelActivityAutoDismiss()
+    }
+
+    /// Playback stopped: drop the pin. Collapse too, unless the cursor is still
+    /// on the island — a pin that outlives playback would strand it on screen.
+    func releasePinIfNeeded() {
+        guard isPinned else { return }
+        isPinned = false
+        guard !islandRectOnScreen.contains(NSEvent.mouseLocation) else { return }
+        collapse()
+    }
+
+    /// The island's current bounds in screen coordinates: centered horizontally
+    /// on the screen, grown downward from its top edge.
+    private var islandRectOnScreen: NSRect {
+        let size = islandMode.size(notchSize: notchSize)
+        return NSRect(
+            x: screen.frame.midX - size.width / 2,
+            y: screen.frame.maxY - size.height,
+            width: size.width,
+            height: size.height
+        )
     }
 
     func advanceReveal() {
