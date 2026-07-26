@@ -329,13 +329,41 @@ struct FilePanel: View {
     }
 
     private func handleDrop(_ providers: [NSItemProvider]) -> Bool {
-        for provider in providers {
+        guard !providers.isEmpty else { return false }
+        // Providers resolve asynchronously; gather every URL, then add them in a
+        // single call so the feedback is one aggregated message (not N "added 1
+        // file" toasts) and ordering is stable.
+        let group = DispatchGroup()
+        let box = URLBox()
+        for (index, provider) in providers.enumerated() {
+            group.enter()
             _ = provider.loadObject(ofClass: URL.self) { url, _ in
-                guard let url else { return }
-                DispatchQueue.main.async { _ = appState.addFiles([url]) }
+                if let url { box.set(index, url) }
+                group.leave()
             }
         }
-        return !providers.isEmpty
+        group.notify(queue: .main) {
+            let urls = box.ordered()
+            guard !urls.isEmpty else { return }
+            _ = appState.addFiles(urls)
+        }
+        return true
+    }
+}
+
+/// Collects URLs from concurrent provider callbacks by original index so the
+/// dropped order is preserved regardless of which provider resolves first.
+private final class URLBox: @unchecked Sendable {
+    private let lock = NSLock()
+    private var urls: [Int: URL] = [:]
+
+    func set(_ index: Int, _ url: URL) {
+        lock.lock(); urls[index] = url; lock.unlock()
+    }
+
+    func ordered() -> [URL] {
+        lock.lock(); defer { lock.unlock() }
+        return urls.sorted { $0.key < $1.key }.map(\.value)
     }
 }
 

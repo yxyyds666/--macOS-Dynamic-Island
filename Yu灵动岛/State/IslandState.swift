@@ -125,6 +125,17 @@ final class IslandState {
         }
     }
 
+    /// Reveal the peek panel directly (menu-bar module shortcuts). Leaves an
+    /// already-expanded island expanded so a shortcut only switches the tab.
+    /// Goes through the state machine so the pin and auto-dismiss timer are
+    /// cleared rather than bypassed.
+    func revealPeek() {
+        guard revealState != .expanded else { return }
+        cancelActivityAutoDismiss()
+        isPinned = false
+        revealState = .peek
+    }
+
     func collapse() {
         revealState = .idle
         isPinned = false

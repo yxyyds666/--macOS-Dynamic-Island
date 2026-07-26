@@ -31,9 +31,3 @@ extension NSScreen {
         return NSRect(x: notchX, y: notchY, width: w, height: h)
     }
 }
-
-extension NSView {
-    func addSubviews(_ views: NSView...) {
-        views.forEach { addSubview($0) }
-    }
-}

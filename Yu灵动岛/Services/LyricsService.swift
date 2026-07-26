@@ -102,7 +102,7 @@ private struct NetEaseLyricsProvider: LyricsProvider {
         guard let url = components.url else { return .failed }
         guard case .success(let data) = await LyricsHTTP.get(url) else { return .failed }
         guard let search = try? JSONDecoder().decode(SearchResponse.self, from: data), let songs = search.result?.songs else { return .failed }
-        let song = songs.min { score($0, title: title, artist: artist, duration: duration) > score($1, title: title, artist: artist, duration: duration) }
+        let song = songs.max { score($0, title: title, artist: artist, duration: duration) < score($1, title: title, artist: artist, duration: duration) }
         guard let song else { return .notFound }
         var lyricURL = URLComponents(string: "https://music.163.com/api/song/lyric")!
         lyricURL.queryItems = [URLQueryItem(name: "id", value: String(song.id)), URLQueryItem(name: "lv", value: "1"), URLQueryItem(name: "kv", value: "1"), URLQueryItem(name: "tv", value: "1")]
@@ -135,7 +135,7 @@ private struct QQMusicLyricsProvider: LyricsProvider {
         guard let url = search.url else { return .failed }
         guard case .success(let data) = await LyricsHTTP.get(url) else { return .failed }
         guard let response = try? JSONDecoder().decode(SearchResponse.self, from: data), let songs = response.data?.song?.list else { return .failed }
-        let song = songs.min { score($0, title: title, artist: artist, duration: duration) > score($1, title: title, artist: artist, duration: duration) }
+        let song = songs.max { score($0, title: title, artist: artist, duration: duration) < score($1, title: title, artist: artist, duration: duration) }
         guard let mid = song?.songmid else { return .notFound }
         var lyric = URLComponents(string: "https://c.y.qq.com/lyric/fcgi-bin/fcg_query_lyric_new.fcg")!
         lyric.queryItems = [URLQueryItem(name: "format", value: "json"), URLQueryItem(name: "songmid", value: mid), URLQueryItem(name: "nobase64", value: "1")]
@@ -178,7 +178,7 @@ private struct KugouLyricsProvider: LyricsProvider {
         guard let url = search.url else { return .failed }
         guard case .success(let data) = await LyricsHTTP.get(url) else { return .failed }
         guard let response = try? JSONDecoder().decode(SearchResponse.self, from: data), let songs = response.data?.lists else { return .failed }
-        let song = songs.min { score($0, title: title, artist: artist, duration: duration) > score($1, title: title, artist: artist, duration: duration) }
+        let song = songs.max { score($0, title: title, artist: artist, duration: duration) < score($1, title: title, artist: artist, duration: duration) }
         guard let hash = song?.fileHash else { return .notFound }
         var lyric = URLComponents(string: "https://www.kugou.com/yy/index.php?r=play/getdata")!
         lyric.queryItems = [URLQueryItem(name: "hash", value: hash)]

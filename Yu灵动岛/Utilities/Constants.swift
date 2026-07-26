@@ -46,9 +46,6 @@ enum AppConstants {
     // How long the auto-popped track-change capsule lingers before collapsing.
     static let activityAutoDismissSeconds: TimeInterval = 3
 
-    // Concave top-corner radius that makes the shape hug the notch shoulders.
-    static let islandTopCornerRadius: CGFloat = 12
-
     // Expanded panel: a wide bar that wraps AROUND the notch — music on the
     // left, files on the right, the physical notch showing through the middle.
     static let expandSidePanelWidth: CGFloat = 320
@@ -77,13 +74,8 @@ enum AppConstants {
     // File transfer limits
     static let maxFileItems = 10
 
-    // Animation durations
-    static let expandDuration: TimeInterval = 0.35
-    static let moduleSwitchDuration: TimeInterval = 0.25
-
     // UserDefaults keys
     enum DefaultsKeys {
-        static let launchAtLogin = "launchAtLogin"
         static let showMusicModule = "showMusicModule"
         static let showFileModule = "showFileModule"
         static let defaultModule = "defaultModule"
@@ -97,12 +89,14 @@ enum AppConstants {
     }
 }
 
-/// The four visual states of the island:
+/// The visual states of the island:
 ///   • idle     — collapsed into the notch (a black pill)
+///   • playing  — idle while music plays: album art + spectrum bars in the wings
 ///   • hover    — mouse over the notch: a subtle bulge, no content
-///   • peek     — dwelled ~1s: music player drapes straight down
-///   • expanded — clicked: a wide bar wrapping AROUND the notch (music left,
-///                files right, the physical notch showing through the middle)
+///   • activity — horizontal capsule wrapping the notch (lyrics or track info)
+///   • peek     — clicked once: music/file panel drapes straight down
+///   • expanded — clicked again: a wide bar wrapping AROUND the notch (music
+///                left, files right, the physical notch showing through)
 enum IslandMode {
     case idle
     case playing

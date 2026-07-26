@@ -132,16 +132,12 @@ final class MenuBarManager: NSObject, NSMenuDelegate, NSWindowDelegate {
 
     @objc private func switchToMusic() {
         appState.selectModule(.music)
-        if let island = primaryIsland, island.revealState != .expanded {
-            island.revealState = .peek
-        }
+        primaryIsland?.revealPeek()
     }
 
     @objc private func switchToFile() {
         appState.selectModule(.file)
-        if let island = primaryIsland, island.revealState != .expanded {
-            island.revealState = .peek
-        }
+        primaryIsland?.revealPeek()
     }
 
     @objc private func openSettings() {

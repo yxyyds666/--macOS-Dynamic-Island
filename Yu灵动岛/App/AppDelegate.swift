@@ -15,6 +15,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     /// One entry per active screen. Key = screen's display-id string.
     private var screenControllers: [String: ScreenController] = [:]
 
+    /// Last-applied `showOnAllDisplays`. Only this setting changes the window
+    /// topology, so a `settingsDidChange` that leaves it untouched (e.g. dragging
+    /// the lyrics-scale slider) can skip the reconcile entirely.
+    private var lastShowOnAllDisplays = false
+
     /// The single shared mouse monitor pair (global + local) driving hover and
     /// click-through for every island window. App-lifetime; windows can come
     /// and go freely without touching these.
@@ -69,11 +74,20 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         menuManager.setup()
         self.menuBarManager = menuManager
 
-        // Respond to settings changes (show-on-all-displays may toggle).
+        // Respond to settings changes, but only the one that affects window
+        // topology (show-on-all-displays). Other settings fire this too — the
+        // reconcile would be wasted work.
+        lastShowOnAllDisplays = SettingsManager.shared.showOnAllDisplays
         NotificationCenter.default.addObserver(
             forName: .settingsDidChange, object: nil, queue: .main
         ) { [weak self] _ in
-            Task { @MainActor [weak self] in self?.reconcileScreenControllers() }
+            Task { @MainActor [weak self] in
+                guard let self else { return }
+                let showAll = SettingsManager.shared.showOnAllDisplays
+                guard showAll != self.lastShowOnAllDisplays else { return }
+                self.lastShowOnAllDisplays = showAll
+                self.reconcileScreenControllers()
+            }
         }
 
         // Respond to display hot-plug / arrangement.
