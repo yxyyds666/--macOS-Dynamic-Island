@@ -28,11 +28,13 @@ jobs:
         run: ./build.sh
 
       - name: 压缩 app
-        # ditto 保留 .app 内的符号链接（framework 结构）与签名，zip 命令会破坏它们
+        # ditto 保留 .app 内的符号链接（framework 结构）与签名，zip 命令会破坏它们。
+        # 资产文件名必须是 ASCII：GitHub 会把 Release 资产名里的非 ASCII 字符剥掉
+        #（"岛一下-xxx.zip" 上传后会变成 "-xxx.zip"）；zip 内部的 岛一下.app 不受影响。
         run: |
           SHORT_SHA="${GITHUB_SHA:0:7}"
-          ditto -c -k --keepParent "dist/岛一下.app" "dist/岛一下-${SHORT_SHA}.zip"
-          echo "ASSET=dist/岛一下-${SHORT_SHA}.zip" >> "$GITHUB_ENV"
+          ditto -c -k --keepParent "dist/岛一下.app" "dist/DaoYiXia-${SHORT_SHA}.zip"
+          echo "ASSET=dist/DaoYiXia-${SHORT_SHA}.zip" >> "$GITHUB_ENV"
           echo "SHORT_SHA=${SHORT_SHA}" >> "$GITHUB_ENV"
 
       - name: 发布 Release
