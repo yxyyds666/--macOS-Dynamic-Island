@@ -19,6 +19,7 @@
 		48937FAC637548F0C585C61F /* DragDropService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3AB0923DA35099F83B584C34 /* DragDropService.swift */; };
 		4BF74AC3D0CEF7CC2FDE2CFE /* FileItem.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9E4E85B407A96BE0CF6E51A4 /* FileItem.swift */; };
 		5D676C648B513E06E1B7EBF1 /* IslandView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 527B421EBC590274035F0A53 /* IslandView.swift */; };
+		67A484FE64747D79A4FDFA2B /* IslandState.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20A6F17A96BCCC9A370AC606 /* IslandState.swift */; };
 		6E07CE18329592000186C480 /* AppState.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A4A1D306A516AB34D218817 /* AppState.swift */; };
 		866B07A0366FB44A78770DF0 /* YuLingDongDaoApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC41E8103FB92F6E889B9159 /* YuLingDongDaoApp.swift */; };
 		90AAE9DC65698AECD8E04BA1 /* NotchDetector.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8F7800B3DDAB71F80BDE6571 /* NotchDetector.swift */; };
@@ -37,6 +38,7 @@
 		0132D125AD004D1895EBAA3E /* AdapterMediaService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AdapterMediaService.swift; sourceTree = "<group>"; };
 		03938695D4AE5A84B3A2C891 /* PlaybackBars.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlaybackBars.swift; sourceTree = "<group>"; };
 		0F6719AA3B4B53CC492AB5D1 /* Constants.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Constants.swift; sourceTree = "<group>"; };
+		20A6F17A96BCCC9A370AC606 /* IslandState.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IslandState.swift; sourceTree = "<group>"; };
 		318B092A4D7249DBC11175FA /* Extensions.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Extensions.swift; sourceTree = "<group>"; };
 		3AB0923DA35099F83B584C34 /* DragDropService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DragDropService.swift; sourceTree = "<group>"; };
 		438C12786411D743AF62C0BF /* IslandPanels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IslandPanels.swift; sourceTree = "<group>"; };
@@ -83,6 +85,7 @@
 			isa = PBXGroup;
 			children = (
 				5A4A1D306A516AB34D218817 /* AppState.swift */,
+				20A6F17A96BCCC9A370AC606 /* IslandState.swift */,
 			);
 			path = State;
 			sourceTree = "<group>";
@@ -288,6 +291,7 @@
 				B8510D27D5FBCAF5CBA4A1A7 /* Extensions.swift in Sources */,
 				4BF74AC3D0CEF7CC2FDE2CFE /* FileItem.swift in Sources */,
 				D110E82251E7113A1E3BF136 /* IslandPanels.swift in Sources */,
+				67A484FE64747D79A4FDFA2B /* IslandState.swift in Sources */,
 				5D676C648B513E06E1B7EBF1 /* IslandView.swift in Sources */,
 				447706B02A8CA1229D0B5E72 /* LyricLine.swift in Sources */,
 				083E6DB878E080E29C75ECE4 /* LyricsService.swift in Sources */,

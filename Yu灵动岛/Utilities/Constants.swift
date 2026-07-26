@@ -88,6 +88,11 @@ enum AppConstants {
         static let showFileModule = "showFileModule"
         static let defaultModule = "defaultModule"
         static let animationSpeed = "animationSpeed"
+        static let hoverToReveal = "hoverToReveal"
+        static let hoverDelay = "hoverDelay"
+        static let artworkBreathing = "artworkBreathing"
+        static let showMenuBarIcon = "showMenuBarIcon"
+        static let showOnAllDisplays = "showOnAllDisplays"
     }
 }
 

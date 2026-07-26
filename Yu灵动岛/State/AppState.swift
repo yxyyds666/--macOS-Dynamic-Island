@@ -2,32 +2,19 @@ import AppKit
 import Foundation
 import SwiftUI
 
+/// Shared app-wide content state. All screen islands read from this single
+/// instance — music, lyrics, files, settings, and media control live here.
+/// Per-screen interaction state (reveal, hover, drag, notch size) lives in
+/// `IslandState`, one per screen.
 @MainActor
 @Observable
 final class AppState {
-    // Current focused module. Expanded mode can show both wings, but this drives
-    // first-click peek, menu/default selection, and the focused wing treatment.
+    // MARK: - Module selection (shared across screens)
+
     var currentModule: NotchModule = .music
 
-    // Interaction state. Keep one source of truth so the island cannot be both
-    // peeked and expanded, or hovered while showing a transient activity capsule.
-    enum RevealState: Equatable {
-        case idle
-        case hover
-        case activity(ActivityContent)
-        case peek
-        case expanded
-    }
+    // MARK: - Music state
 
-    /// What the horizontal activity capsule is currently showing.
-    ///   • lyrics    — hover while focused on music and playing: synced lyrics
-    ///   • trackInfo — auto-popped on a track change: artist · album
-    enum ActivityContent: Equatable { case lyrics, trackInfo }
-
-    var revealState: RevealState = .idle
-    var notchSize: CGSize = NotchDetector.idleSize()
-
-    // Music state
     var isPlaying: Bool = false
     var songTitle: String = ""
     var artistName: String = ""
@@ -37,7 +24,8 @@ final class AppState {
     var duration: TimeInterval = 0
     var volume: Float = 0.5
 
-    // Time-synced/plain lyrics for the current track.
+    // MARK: - Lyrics
+
     enum LyricsState: Equatable {
         case idle
         case loading
@@ -66,7 +54,8 @@ final class AppState {
         NotificationCenter.default.post(name: .lyricsRetryRequested, object: nil)
     }
 
-    // File transfer state
+    // MARK: - File transfer state
+
     var fileItems: [FileItem] = []
 
     enum FileDropResult: Equatable {
@@ -85,25 +74,34 @@ final class AppState {
 
     var fileDropFeedback: FileDropFeedback?
 
-    // Settings
+    // MARK: - Settings (mirrored from UserDefaults so views can observe)
+
     var showMusicModule: Bool = true
     var showFileModule: Bool = true
+    /// Multiplier applied to spring response times. 1.0 = default, >1 = faster.
+    var animationSpeed: Double = 1.0
+    /// Whether hovering reveals the island.
+    var hoverToReveal: Bool = true
+    /// Seconds the cursor must dwell before hover reveals the island.
+    var hoverDelay: Double = 0
+    /// Whether the album artwork gently breathes (scales) while playing.
+    var artworkBreathing: Bool = true
 
-    // Drag state
-    var isDragTarget: Bool = false
+    // MARK: - Media control (injected by AppDelegate; not observed)
 
-    // Media control (injected by AppDelegate; not observed)
     @ObservationIgnored weak var mediaService: (any MediaServiceProtocol)?
     @ObservationIgnored private var progressTimer: Timer?
-    @ObservationIgnored private var activityDismissTimer: Timer?
     @ObservationIgnored private var fileFeedbackTask: Task<Void, Never>?
+
+    // MARK: - Init
 
     init() {
         SettingsManager.shared.normalizeModuleSettings()
         loadSettings()
-        // Honor the user's preferred default module, clamped to what's enabled.
         let preferred = SettingsManager.shared.defaultModule
-        currentModule = availableModules.contains(preferred) ? preferred : (availableModules.first ?? .music)
+        currentModule = availableModules.contains(preferred)
+            ? preferred
+            : (availableModules.first ?? .music)
 
         NotificationCenter.default.addObserver(
             forName: .settingsDidChange,
@@ -116,13 +114,32 @@ final class AppState {
         }
     }
 
-    /// Re-reads persisted settings and reconciles the active/default module.
-    func reloadSettings(applyDefault: Bool = false) {
-        loadSettings()
-        clampCurrentModule(applyDefault: applyDefault)
+    // MARK: - Module management
+
+    var availableModules: [NotchModule] {
+        var modules: [NotchModule] = []
+        if showMusicModule { modules.append(.music) }
+        if showFileModule  { modules.append(.file)  }
+        return modules
     }
 
-    private func clampCurrentModule(applyDefault: Bool) {
+    /// Change the active module. Does NOT affect reveal state (callers must
+    /// call the relevant `IslandState` methods for that).
+    func selectModule(_ module: NotchModule) {
+        guard availableModules.contains(module) else { return }
+        currentModule = module
+    }
+
+    func nextModule() {
+        let modules = availableModules
+        guard let idx = modules.firstIndex(of: currentModule), !modules.isEmpty else { return }
+        currentModule = modules[(idx + 1) % modules.count]
+    }
+
+    // MARK: - Settings
+
+    func reloadSettings(applyDefault: Bool = false) {
+        loadSettings()
         let modules = availableModules
         if applyDefault, modules.contains(SettingsManager.shared.defaultModule) {
             currentModule = SettingsManager.shared.defaultModule
@@ -131,297 +148,24 @@ final class AppState {
         }
     }
 
-    /// The island's visual state: expanded wins, then peek, then the horizontal
-    /// activity capsule, then hover, else idle.
-    var islandMode: IslandMode {
-        switch revealState {
-        case .idle:
-            return isPlaying && !songTitle.isEmpty ? .playing : .idle
-        case .hover: return .hover
-        case .activity: return .activity
-        case .peek: return .peek
-        case .expanded: return .expanded
-        }
+    private func loadSettings() {
+        let s = SettingsManager.shared
+        s.normalizeModuleSettings()
+        showMusicModule  = s.showMusicModule
+        showFileModule   = s.showFileModule
+        animationSpeed   = s.animationSpeed > 0 ? s.animationSpeed : 1.0
+        hoverToReveal    = s.hoverToReveal
+        hoverDelay       = s.hoverDelay
+        artworkBreathing = s.artworkBreathing
     }
 
-    var activityContent: ActivityContent? {
-        if case .activity(let content) = revealState { return content }
-        return nil
-    }
+    // MARK: - File management
 
-    /// Mouse entered the notch. Hovering focused music while a track is playing
-    /// shows the horizontal lyrics capsule; otherwise it is only a subtle bulge.
-    func mouseEnteredNotch() {
-        cancelActivityAutoDismiss()
-        guard revealState != .peek, revealState != .expanded else { return }
-        if currentModule == .music, showMusicModule, isPlaying, !songTitle.isEmpty {
-            revealState = .activity(.lyrics)
-        } else {
-            revealState = .hover
-        }
-    }
-
-    /// Mouse left the island: collapse everything back to idle.
-    func mouseExitedNotch() {
-        collapse()
-    }
-
-    /// A click advances the reveal one step: idle/hover/activity → peek for the
-    /// focused module, then peek → expanded two-wing layout.
-    func advanceReveal() {
-        cancelActivityAutoDismiss()
-        clampCurrentModule(applyDefault: false)
-        switch revealState {
-        case .peek:
-            revealState = .expanded
-        case .expanded:
-            break
-        default:
-            revealState = .peek
-        }
-    }
-
-    func collapse() {
-        revealState = .idle
-        isDragTarget = false
-        cancelActivityAutoDismiss()
-    }
-
-    func expand() {
-        cancelActivityAutoDismiss()
-        revealState = .expanded
-    }
-
-    func selectModule(_ module: NotchModule, reveal: Bool = false) {
-        guard availableModules.contains(module) else { return }
-        currentModule = module
-        if reveal {
-            cancelActivityAutoDismiss()
-            if revealState != .expanded {
-                revealState = .peek
-            }
-        }
-    }
-
-    // MARK: - Track-change activity
-
-    /// Called when the now-playing track changes. Pops the horizontal capsule
-    /// showing the new track's info, then auto-collapses after a few seconds.
-    func trackDidChange() {
-        // Don't hijack the island if the user is actively interacting with it.
-        guard revealState == .idle else { return }
-        revealState = .activity(.trackInfo)
-        scheduleActivityAutoDismiss()
-    }
-
-    private func scheduleActivityAutoDismiss() {
-        cancelActivityAutoDismiss()
-        activityDismissTimer = Timer.scheduledTimer(
-            withTimeInterval: AppConstants.activityAutoDismissSeconds,
-            repeats: false
-        ) { [weak self] _ in
-            Task { @MainActor [weak self] in
-                guard let self else { return }
-                if case .activity(.trackInfo) = self.revealState {
-                    self.revealState = .idle
-                }
-            }
-        }
-    }
-
-    private func cancelActivityAutoDismiss() {
-        activityDismissTimer?.invalidate()
-        activityDismissTimer = nil
-    }
-
-    // MARK: - Drag/File state
-
-    /// A file drag arrived over the notch. Return false to reject hidden/full file
-    /// station drags before AppKit starts a copy operation.
-    @discardableResult
-    func beginFileDrag() -> Bool {
-        guard showFileModule else {
-            showFileDropFeedback("文件中转站已关闭", isError: true)
-            return false
-        }
-        guard remainingFileSlots > 0 else {
-            showFileDropFeedback("文件中转站已满", isError: true)
-            return false
-        }
-        isDragTarget = true
-        currentModule = .file
-        revealState = .expanded
-        cancelActivityAutoDismiss()
-        return true
-    }
-
-    func dragEnteredNotch() {
-        _ = beginFileDrag()
-    }
-
-    /// The drag left without dropping: snap crisply back to idle.
-    func dragExitedNotch() {
-        isDragTarget = false
-        collapse()
-    }
-
-    var remainingFileSlots: Int {
-        max(0, AppConstants.maxFileItems - fileItems.count)
-    }
-
-    var canAcceptFiles: Bool {
-        showFileModule && remainingFileSlots > 0
-    }
-
-    @discardableResult
-    func addFiles(_ urls: [URL]) -> FileDropResult {
-        guard showFileModule else {
-            let result: FileDropResult = .disabled
-            showFileDropFeedback(for: result)
-            return result
-        }
-
-        let candidates = urls.filter(\.isFileURL)
-        let invalid = urls.count - candidates.count
-        guard !candidates.isEmpty else {
-            let result: FileDropResult = .empty
-            showFileDropFeedback(for: result)
-            return result
-        }
-
-        let remaining = remainingFileSlots
-        guard remaining > 0 else {
-            let result: FileDropResult = .full
-            showFileDropFeedback(for: result)
-            return result
-        }
-
-        let items = candidates.compactMap(FileItem.init(url:))
-        let rejected = candidates.count - items.count
-        guard !items.isEmpty else {
-            let result: FileDropResult = .empty
-            showFileDropFeedback(for: result)
-            return result
-        }
-        let accepted = Array(items.prefix(remaining))
-        for item in accepted { addFile(item) }
-        currentModule = .file
-
-        let overflow = max(0, items.count - accepted.count)
-        let invalidCount = invalid + rejected
-        let result: FileDropResult = invalidCount > 0 || overflow > 0
-            ? .partial(added: accepted.count, invalid: invalidCount, overflow: overflow)
-            : .added(accepted.count)
-        showFileDropFeedback(for: result)
-        return result
-    }
-
-    private func showFileDropFeedback(for result: FileDropResult) {
-        switch result {
-        case .added(let count):
-            showFileDropFeedback("已添加 \(count) 个文件", isError: false)
-        case .partial(let added, let invalid, let overflow):
-            var details: [String] = []
-            if invalid > 0 { details.append("\(invalid) 个无效项目") }
-            if overflow > 0 { details.append("\(overflow) 个超出上限") }
-            showFileDropFeedback("已添加 \(added) 个，" + details.joined(separator: "，"), isError: true)
-        case .full:
-            showFileDropFeedback("文件中转站已满", isError: true)
-        case .disabled:
-            showFileDropFeedback("文件中转站已关闭", isError: true)
-        case .empty:
-            showFileDropFeedback("没有可添加的文件", isError: true)
-        }
-    }
-
-    func showFileDropFeedback(_ message: String, isError: Bool) {
-        fileFeedbackTask?.cancel()
-        let feedback = FileDropFeedback(message: message, isError: isError)
-        fileDropFeedback = feedback
-        fileFeedbackTask = Task { @MainActor [weak self] in
-            try? await Task.sleep(nanoseconds: 2_200_000_000)
-            guard !Task.isCancelled, self?.fileDropFeedback?.id == feedback.id else { return }
-            self?.fileDropFeedback = nil
-        }
-    }
-
-    // MARK: - Lyrics
-
-    var syncedLyrics: [LyricLine] {
-        if case .synced(let lines) = lyricsState { return lines }
-        return []
-    }
-
-    // Compatibility for code paths that only need synced lyric lines.
-    var lyrics: [LyricLine] {
-        get { syncedLyrics }
-        set {
-            lyricsState = newValue.isEmpty ? .notFound : .synced(newValue)
-            if newValue.isEmpty { currentLyricIndex = -1 }
-        }
-    }
-
-    func resetLyrics() {
-        lyricsState = .idle
-        currentLyricIndex = -1
-    }
-
-    func setLyricsLoading() {
-        lyricsState = .loading
-        currentLyricIndex = -1
-    }
-
-    func applyLyricsResult(_ result: LyricsFetchResult) {
-        switch result {
-        case .synced(let lines):
-            lyricsState = lines.isEmpty ? .notFound : .synced(lines)
-        case .plain(let text):
-            lyricsState = text.isEmpty ? .notFound : .plain(text)
-        case .notFound:
-            lyricsState = .notFound
-        case .failed:
-            lyricsState = .failed
-        }
-        updateCurrentLyric(at: currentTime)
-    }
-
-    /// Index of the lyric line active at the given playback time, or -1 if the
-    /// track has no synced lyrics or playback is before the first line.
-    func updateCurrentLyric(at time: TimeInterval) {
-        guard case .synced(let lines) = lyricsState, !lines.isEmpty else {
-            currentLyricIndex = -1
-            return
-        }
-        var idx = -1
-        for (i, line) in lines.enumerated() where line.time <= time { idx = i }
-        currentLyricIndex = idx
-    }
-
-    var hasMediaPlaying: Bool {
-        !songTitle.isEmpty
-    }
-
-    var hasFiles: Bool {
-        !fileItems.isEmpty
-    }
-
-    var canAddFile: Bool {
-        remainingFileSlots > 0
-    }
-
-    func nextModule() {
-        let modules = availableModules
-        guard let currentIndex = modules.firstIndex(of: currentModule), !modules.isEmpty else { return }
-        let nextIndex = (currentIndex + 1) % modules.count
-        currentModule = modules[nextIndex]
-    }
-
-    var availableModules: [NotchModule] {
-        var modules: [NotchModule] = []
-        if showMusicModule { modules.append(.music) }
-        if showFileModule { modules.append(.file) }
-        return modules
-    }
+    var remainingFileSlots: Int { max(0, AppConstants.maxFileItems - fileItems.count) }
+    var canAcceptFiles: Bool    { showFileModule && remainingFileSlots > 0 }
+    var hasFiles: Bool          { !fileItems.isEmpty }
+    var canAddFile: Bool        { remainingFileSlots > 0 }
+    var hasMediaPlaying: Bool   { !songTitle.isEmpty }
 
     func addFile(_ item: FileItem) {
         guard canAddFile else { return }
@@ -438,76 +182,137 @@ final class AppState {
         showFileDropFeedback("已清空", isError: false)
     }
 
+    @discardableResult
+    func addFiles(_ urls: [URL]) -> FileDropResult {
+        guard showFileModule else {
+            let r: FileDropResult = .disabled; showFileDropFeedback(for: r); return r
+        }
+        let candidates = urls.filter(\.isFileURL)
+        let invalid = urls.count - candidates.count
+        guard !candidates.isEmpty else {
+            let r: FileDropResult = .empty; showFileDropFeedback(for: r); return r
+        }
+        let remaining = remainingFileSlots
+        guard remaining > 0 else {
+            let r: FileDropResult = .full; showFileDropFeedback(for: r); return r
+        }
+        let items = candidates.compactMap(FileItem.init(url:))
+        let rejected = candidates.count - items.count
+        guard !items.isEmpty else {
+            let r: FileDropResult = .empty; showFileDropFeedback(for: r); return r
+        }
+        let accepted = Array(items.prefix(remaining))
+        for item in accepted { addFile(item) }
+        currentModule = .file
+        let overflow     = max(0, items.count - accepted.count)
+        let invalidCount = invalid + rejected
+        let result: FileDropResult = invalidCount > 0 || overflow > 0
+            ? .partial(added: accepted.count, invalid: invalidCount, overflow: overflow)
+            : .added(accepted.count)
+        showFileDropFeedback(for: result)
+        return result
+    }
+
+    private func showFileDropFeedback(for result: FileDropResult) {
+        switch result {
+        case .added(let n):
+            showFileDropFeedback("已添加 \(n) 个文件", isError: false)
+        case .partial(let added, let invalid, let overflow):
+            var d: [String] = []
+            if invalid  > 0 { d.append("\(invalid) 个无效项目") }
+            if overflow > 0 { d.append("\(overflow) 个超出上限") }
+            showFileDropFeedback("已添加 \(added) 个，" + d.joined(separator: "，"), isError: true)
+        case .full:     showFileDropFeedback("文件中转站已满", isError: true)
+        case .disabled: showFileDropFeedback("文件中转站已关闭", isError: true)
+        case .empty:    showFileDropFeedback("没有可添加的文件", isError: true)
+        }
+    }
+
+    func showFileDropFeedback(_ message: String, isError: Bool) {
+        fileFeedbackTask?.cancel()
+        let fb = FileDropFeedback(message: message, isError: isError)
+        fileDropFeedback = fb
+        fileFeedbackTask = Task { @MainActor [weak self] in
+            try? await Task.sleep(nanoseconds: 2_200_000_000)
+            guard !Task.isCancelled, self?.fileDropFeedback?.id == fb.id else { return }
+            self?.fileDropFeedback = nil
+        }
+    }
+
+    // MARK: - Lyrics helpers
+
+    var syncedLyrics: [LyricLine] {
+        if case .synced(let lines) = lyricsState { return lines }
+        return []
+    }
+
+    var lyrics: [LyricLine] {
+        get { syncedLyrics }
+        set {
+            lyricsState = newValue.isEmpty ? .notFound : .synced(newValue)
+            if newValue.isEmpty { currentLyricIndex = -1 }
+        }
+    }
+
+    func resetLyrics() { lyricsState = .idle; currentLyricIndex = -1 }
+    func setLyricsLoading() { lyricsState = .loading; currentLyricIndex = -1 }
+
+    func applyLyricsResult(_ result: LyricsFetchResult) {
+        switch result {
+        case .synced(let lines): lyricsState = lines.isEmpty ? .notFound : .synced(lines)
+        case .plain(let text):   lyricsState = text.isEmpty  ? .notFound : .plain(text)
+        case .notFound:          lyricsState = .notFound
+        case .failed:            lyricsState = .failed
+        }
+        updateCurrentLyric(at: currentTime)
+    }
+
+    func updateCurrentLyric(at time: TimeInterval) {
+        guard case .synced(let lines) = lyricsState, !lines.isEmpty else {
+            currentLyricIndex = -1; return
+        }
+        var idx = -1
+        for (i, line) in lines.enumerated() where line.time <= time { idx = i }
+        currentLyricIndex = idx
+    }
+
     // MARK: - Media Control
 
-    func togglePlayPause() {
-        mediaService?.togglePlayPause()
-        // Optimistic update; corrected by the next now-playing poll.
-        isPlaying.toggle()
-    }
-
-    func nextTrack() {
-        mediaService?.nextTrack()
-    }
-
-    func previousTrack() {
-        mediaService?.previousTrack()
-    }
+    func togglePlayPause() { mediaService?.togglePlayPause(); isPlaying.toggle() }
+    func nextTrack()        { mediaService?.nextTrack() }
+    func previousTrack()    { mediaService?.previousTrack() }
 
     func seek(to time: TimeInterval) {
-        let clamped = min(max(0, time), duration)
-        currentTime = clamped
-        mediaService?.seek(to: clamped)
-        updateCurrentLyric(at: clamped)
+        let c = min(max(0, time), duration)
+        currentTime = c
+        mediaService?.seek(to: c)
+        updateCurrentLyric(at: c)
     }
 
     func setVolume(_ newValue: Float) {
         let clamped = min(max(newValue, 0), 1)
         let previous = volume
-        // Drive the slider from the requested value, not a read-back. CoreAudio
-        // quantizes the written value, so reading it straight back yields a
-        // slightly different number that snaps the thumb away from the finger
-        // mid-drag. Only fall back to the real system value when the write fails.
         guard mediaService?.setVolume(clamped) == true else {
-            volume = SystemAudio.currentVolume() ?? previous
-            return
+            volume = SystemAudio.currentVolume() ?? previous; return
         }
         volume = clamped
     }
 
-    /// Syncs the slider to the actual system output volume so it starts at the
-    /// right position rather than a hardcoded default.
     func syncVolumeFromSystem() {
-        if let system = SystemAudio.currentVolume() {
-            volume = system
-        }
+        if let v = SystemAudio.currentVolume() { volume = v }
     }
 
-    /// Smoothly advances `currentTime` between now-playing updates so the progress
-    /// bar and highlighted lyric do not visibly jump.
     func startProgressTimer() {
         progressTimer?.invalidate()
         progressTimer = Timer.scheduledTimer(withTimeInterval: 0.5, repeats: true) { [weak self] _ in
             Task { @MainActor [weak self] in
                 guard let self, self.isPlaying else { return }
                 let next = self.currentTime + 0.5
-                if self.duration <= 0 || next <= self.duration {
-                    self.currentTime = next
-                }
+                if self.duration <= 0 || next <= self.duration { self.currentTime = next }
                 self.updateCurrentLyric(at: self.currentTime)
             }
         }
     }
 
-    func stopProgressTimer() {
-        progressTimer?.invalidate()
-        progressTimer = nil
-    }
-
-    private func loadSettings() {
-        let settings = SettingsManager.shared
-        settings.normalizeModuleSettings()
-        showMusicModule = settings.showMusicModule
-        showFileModule = settings.showFileModule
-    }
+    func stopProgressTimer() { progressTimer?.invalidate(); progressTimer = nil }
 }

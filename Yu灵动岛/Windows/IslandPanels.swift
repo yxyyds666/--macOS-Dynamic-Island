@@ -201,7 +201,7 @@ struct MusicPanel: View {
     }
 
     private func syncArtworkAnimation() {
-        let active = appState.isPlaying && !appState.songTitle.isEmpty
+        let active = appState.artworkBreathing && appState.isPlaying && !appState.songTitle.isEmpty
         if active {
             withAnimation(.easeInOut(duration: 0.9).repeatForever(autoreverses: true)) {
                 artworkBreathing = true
@@ -246,9 +246,10 @@ struct FilePanel: View {
     @Bindable var appState: AppState
     var compact: Bool = false
     var focused: Bool = true
+    var isDragTarget: Bool = false
     @State private var isTargeted = false
 
-    private var dropActive: Bool { isTargeted || appState.isDragTarget }
+    private var dropActive: Bool { isTargeted || isDragTarget }
 
     var body: some View {
         VStack(alignment: .leading, spacing: compact ? 6 : 8) {
@@ -439,6 +440,7 @@ private struct LyricsPanel: View {
 
 struct ActivityCapsule: View {
     @Bindable var appState: AppState
+    let activityContent: ActivityContent?
     let notchWidth: CGFloat
     let notchHeight: CGFloat
     var namespace: Namespace.ID? = nil
@@ -457,7 +459,7 @@ struct ActivityCapsule: View {
     }
 
     private func syncCapsuleAnimation() {
-        let active = appState.isPlaying && !appState.songTitle.isEmpty && appState.activityContent == .lyrics
+        let active = appState.artworkBreathing && appState.isPlaying && !appState.songTitle.isEmpty && activityContent == .lyrics
         if active {
             withAnimation(.easeInOut(duration: 0.9).repeatForever(autoreverses: true)) {
                 artworkBreathing = true
@@ -478,7 +480,7 @@ struct ActivityCapsule: View {
     }
 
     @ViewBuilder private var rightContent: some View {
-        switch appState.activityContent {
+        switch activityContent {
         case .lyrics: lyricsPreview
         case .trackInfo, .none: trackInfo
         }

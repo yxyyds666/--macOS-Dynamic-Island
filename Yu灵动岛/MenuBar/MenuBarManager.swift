@@ -6,6 +6,9 @@ final class MenuBarManager: NSObject, NSMenuDelegate, NSWindowDelegate {
     private var statusItem: NSStatusItem?
     private var settingsWindow: NSWindow?
     private let appState: AppState
+    /// The primary (built-in notch) screen's island. Used for reveal/collapse
+    /// from menu-bar shortcuts and settings open/close.
+    weak var primaryIsland: IslandState?
 
     init(appState: AppState) {
         self.appState = appState
@@ -28,6 +31,27 @@ final class MenuBarManager: NSObject, NSMenuDelegate, NSWindowDelegate {
             name: .openSettingsRequested,
             object: nil
         )
+
+        // Re-apply menu-bar-icon visibility when settings change.
+        NotificationCenter.default.addObserver(
+            self,
+            selector: #selector(settingsChanged),
+            name: .settingsDidChange,
+            object: nil
+        )
+        applyMenuBarVisibility()
+    }
+
+    @objc private func settingsChanged() {
+        applyMenuBarVisibility()
+    }
+
+    /// Shows or hides the status-bar item per the user's preference. The item is
+    /// kept alive (just made invisible) so toggling it back on is instant. The
+    /// island itself and the in-island settings gear remain the way to reach
+    /// settings when the icon is hidden.
+    private func applyMenuBarVisibility() {
+        statusItem?.isVisible = SettingsManager.shared.showMenuBarIcon
     }
 
     /// Reflects playback state in the status bar glyph.
@@ -107,11 +131,17 @@ final class MenuBarManager: NSObject, NSMenuDelegate, NSWindowDelegate {
     // MARK: - Actions
 
     @objc private func switchToMusic() {
-        appState.selectModule(.music, reveal: true)
+        appState.selectModule(.music)
+        if let island = primaryIsland, island.revealState != .expanded {
+            island.revealState = .peek
+        }
     }
 
     @objc private func switchToFile() {
-        appState.selectModule(.file, reveal: true)
+        appState.selectModule(.file)
+        if let island = primaryIsland, island.revealState != .expanded {
+            island.revealState = .peek
+        }
     }
 
     @objc private func openSettings() {
@@ -124,19 +154,16 @@ final class MenuBarManager: NSObject, NSMenuDelegate, NSWindowDelegate {
     }
 
     private func presentSettings() {
-        // This is an LSUIElement (menu-bar-only) app, so it normally runs as an
-        // .accessory app that can't become active — its windows show but never
-        // become key, so controls don't take clicks. Promote to .regular while
-        // the settings window is open so it can accept input, then drop back to
-        // .accessory when it closes (see windowWillClose).
-        NSApp.setActivationPolicy(.regular)
+        // Collapse the island first so it doesn't hold key-window status while
+        // the settings window is trying to become key.
+        primaryIsland?.collapse()
 
-        // Rebuild the content each open so SwiftUI @State reloads from the saved
+        // Rebuild the content each open so SwiftUI @State reloads from saved
         // settings rather than showing stale draft values from a prior session.
         let controller = NSHostingController(
-            rootView: SettingsView { [weak self] in
+            rootView: SettingsView(onClose: { [weak self] in
                 self?.settingsWindow?.close()
-            }
+            })
         )
         if let window = settingsWindow {
             window.contentViewController = controller
@@ -149,9 +176,15 @@ final class MenuBarManager: NSObject, NSMenuDelegate, NSWindowDelegate {
             settingsWindow = window
         }
         settingsWindow?.center()
-        NSApp.activate(ignoringOtherApps: true)
-        settingsWindow?.makeKeyAndOrderFront(nil)
-        settingsWindow?.orderFrontRegardless()
+
+        // setActivationPolicy needs at least one runloop pass to fully take
+        // effect. Deferring the activate + makeKey call to the NEXT async hop
+        // ensures the window actually receives key focus and controls respond.
+        NSApp.setActivationPolicy(.regular)
+        DispatchQueue.main.async { [weak self] in
+            NSApp.activate(ignoringOtherApps: true)
+            self?.settingsWindow?.makeKeyAndOrderFront(nil)
+        }
     }
 
     // MARK: - NSWindowDelegate

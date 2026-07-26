@@ -8,8 +8,10 @@ import UniformTypeIdentifiers
 @MainActor
 final class DragDropService: NSObject {
     private let appState: AppState
+    private let island: IslandState
 
-    init(appState: AppState) {
+    init(island: IslandState, appState: AppState) {
+        self.island = island
         self.appState = appState
     }
 
@@ -27,16 +29,16 @@ final class DragDropService: NSObject {
         guard sender.draggingPasteboard.canReadObject(forClasses: [NSURL.self], options: nil) else {
             return []
         }
-        guard appState.beginFileDrag() else { return [] }
+        guard island.beginFileDrag() else { return [] }
         return .copy
     }
 
     fileprivate func draggingExited() {
-        appState.dragExitedNotch()
+        island.dragExitedNotch()
     }
 
     fileprivate func performDrop(_ sender: NSDraggingInfo) -> Bool {
-        appState.isDragTarget = false
+        island.isDragTarget = false
 
         let pasteboard = sender.draggingPasteboard
         guard let urls = pasteboard.readObjects(forClasses: [NSURL.self]) as? [URL],
@@ -46,16 +48,12 @@ final class DragDropService: NSObject {
         }
 
         let result = appState.addFiles(urls)
-        // Stay expanded after the drop; the next mouse-exit or close button
-        // collapses it, and the focused file wing shows the result.
-        appState.expand()
+        island.expand()
         appState.currentModule = .file
 
         switch result {
-        case .added, .partial:
-            return true
-        case .full, .disabled, .empty:
-            return false
+        case .added, .partial: return true
+        case .full, .disabled, .empty: return false
         }
     }
 }

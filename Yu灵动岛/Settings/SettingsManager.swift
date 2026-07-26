@@ -1,5 +1,4 @@
 import Foundation
-import ServiceManagement
 
 extension Notification.Name {
     /// Posted after settings are saved so the running app can apply them live.
@@ -18,31 +17,55 @@ final class SettingsManager: @unchecked Sendable {
 
     private let defaults = UserDefaults.standard
 
+    /// Launch-at-login is managed with a per-user LaunchAgent plist rather than
+    /// SMAppService. SMAppService requires a stable Developer ID signature to be
+    /// honored at login; this app ships ad-hoc signed, so its registration is
+    /// silently ignored by macOS. A LaunchAgent works regardless of signing.
+    private let launchAgentLabel = "com.yuxi.yulingdongdao.launchatlogin"
+
+    private var launchAgentURL: URL {
+        FileManager.default
+            .homeDirectoryForCurrentUser
+            .appendingPathComponent("Library/LaunchAgents/\(launchAgentLabel).plist")
+    }
+
     var launchAtLoginStatus: LaunchAtLoginStatus {
-        switch SMAppService.mainApp.status {
-        case .enabled: return .enabled
-        case .requiresApproval: return .requiresApproval
-        case .notRegistered: return .disabled
-        case .notFound: return .unavailable
-        @unknown default: return .unavailable
-        }
+        launchAtLogin ? .enabled : .disabled
     }
 
     var launchAtLogin: Bool {
-        launchAtLoginStatus == .enabled
+        FileManager.default.fileExists(atPath: launchAgentURL.path)
     }
 
     @discardableResult
     func setLaunchAtLogin(_ enabled: Bool) throws -> LaunchAtLoginStatus {
-        let service = SMAppService.mainApp
+        let fm = FileManager.default
+        let url = launchAgentURL
         if enabled {
-            if service.status == .notRegistered {
-                try service.register()
-            }
-        } else if service.status == .enabled || service.status == .requiresApproval {
-            try service.unregister()
+            try fm.createDirectory(
+                at: url.deletingLastPathComponent(),
+                withIntermediateDirectories: true
+            )
+            let data = try PropertyListSerialization.data(
+                fromPropertyList: launchAgentPlist(),
+                format: .xml,
+                options: 0
+            )
+            try data.write(to: url, options: .atomic)
+        } else if fm.fileExists(atPath: url.path) {
+            try fm.removeItem(at: url)
         }
         return launchAtLoginStatus
+    }
+
+    /// The LaunchAgent contents pointing at the currently running app bundle.
+    private func launchAgentPlist() -> [String: Any] {
+        [
+            "Label": launchAgentLabel,
+            "ProgramArguments": ["/usr/bin/open", "-a", Bundle.main.bundlePath],
+            "RunAtLoad": true,
+            "LimitLoadToSessionType": "Aqua",
+        ]
     }
 
     var showMusicModule: Bool {
@@ -70,6 +93,37 @@ final class SettingsManager: @unchecked Sendable {
         set { defaults.set(newValue, forKey: AppConstants.DefaultsKeys.animationSpeed) }
     }
 
+    /// Whether hovering the notch reveals the island (hover state / lyrics
+    /// capsule). When off, only a click reveals it.
+    var hoverToReveal: Bool {
+        get { defaults.object(forKey: AppConstants.DefaultsKeys.hoverToReveal) as? Bool ?? true }
+        set { defaults.set(newValue, forKey: AppConstants.DefaultsKeys.hoverToReveal) }
+    }
+
+    /// Seconds the cursor must dwell over the notch before hover reveals it.
+    var hoverDelay: Double {
+        get { defaults.double(forKey: AppConstants.DefaultsKeys.hoverDelay) }
+        set { defaults.set(newValue, forKey: AppConstants.DefaultsKeys.hoverDelay) }
+    }
+
+    /// Whether the album artwork gently "breathes" (scales) while playing.
+    var artworkBreathing: Bool {
+        get { defaults.object(forKey: AppConstants.DefaultsKeys.artworkBreathing) as? Bool ?? true }
+        set { defaults.set(newValue, forKey: AppConstants.DefaultsKeys.artworkBreathing) }
+    }
+
+    /// Whether the menu bar status item is shown.
+    var showMenuBarIcon: Bool {
+        get { defaults.object(forKey: AppConstants.DefaultsKeys.showMenuBarIcon) as? Bool ?? true }
+        set { defaults.set(newValue, forKey: AppConstants.DefaultsKeys.showMenuBarIcon) }
+    }
+
+    /// Show an island on every connected display (not just the built-in notch screen).
+    var showOnAllDisplays: Bool {
+        get { defaults.object(forKey: AppConstants.DefaultsKeys.showOnAllDisplays) as? Bool ?? false }
+        set { defaults.set(newValue, forKey: AppConstants.DefaultsKeys.showOnAllDisplays) }
+    }
+
     var enabledModules: [NotchModule] {
         normalizeModuleSettings()
         var modules: [NotchModule] = []
@@ -83,7 +137,12 @@ final class SettingsManager: @unchecked Sendable {
             AppConstants.DefaultsKeys.showMusicModule: true,
             AppConstants.DefaultsKeys.showFileModule: true,
             AppConstants.DefaultsKeys.defaultModule: "music",
-            AppConstants.DefaultsKeys.animationSpeed: 1.0
+            AppConstants.DefaultsKeys.animationSpeed: 1.0,
+            AppConstants.DefaultsKeys.hoverToReveal: true,
+            AppConstants.DefaultsKeys.hoverDelay: 0.0,
+            AppConstants.DefaultsKeys.artworkBreathing: true,
+            AppConstants.DefaultsKeys.showMenuBarIcon: true,
+            AppConstants.DefaultsKeys.showOnAllDisplays: false
         ])
         normalizeModuleSettings()
     }

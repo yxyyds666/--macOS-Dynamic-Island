@@ -62,6 +62,17 @@ struct NotchDetector {
         return NSRect(x: x, y: y, width: size.width, height: size.height)
     }
 
+    /// The fixed window frame for any screen (notched or not).
+    static func fixedWindowFrame(for screen: NSScreen) -> NSRect {
+        let notchW = screen.hasNotch ? screen.notchWidth  : AppConstants.notchWidth
+        let notchH = screen.hasNotch ? screen.notchHeight : AppConstants.notchHeight
+        let width  = notchW + 2 * AppConstants.expandSidePanelWidth + 2 * AppConstants.islandShadowPadding
+        let height = AppConstants.expandPanelHeight + AppConstants.islandShadowPadding
+        let x = screen.frame.midX - width / 2
+        let y = screen.frame.maxY - height
+        return NSRect(x: x, y: y, width: width, height: height)
+    }
+
     static func expandPanelFrame() -> NSRect {
         guard let screen = builtInNotchScreen else { return .zero }
         let panelWidth = AppConstants.expandPanelWidth
