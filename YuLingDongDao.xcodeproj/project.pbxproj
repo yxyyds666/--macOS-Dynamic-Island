@@ -29,7 +29,6 @@
 		D110E82251E7113A1E3BF136 /* IslandPanels.swift in Sources */ = {isa = PBXBuildFile; fileRef = 438C12786411D743AF62C0BF /* IslandPanels.swift */; };
 		D62DA7902C3CC624FE407ECB /* NotchWindow.swift in Sources */ = {isa = PBXBuildFile; fileRef = 861069341C9D750FD215BEE7 /* NotchWindow.swift */; };
 		DAE3F33BBAC39ACABB50092E /* AppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = E6604B7B220649BC6A5CBC2F /* AppDelegate.swift */; };
-		DFFD79D362C03BA23078F078 /* CollapsedPlaybackActivity.swift in Sources */ = {isa = PBXBuildFile; fileRef = 54874BE388E23E952CD888D8 /* CollapsedPlaybackActivity.swift */; };
 		EAFA3064683BEC6BD4F6560E /* AdapterMediaService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0132D125AD004D1895EBAA3E /* AdapterMediaService.swift */; };
 		FCF54FCA48C2690D39BC9D05 /* SystemAudio.swift in Sources */ = {isa = PBXBuildFile; fileRef = C22FD436BCF7549F9F07C8F9 /* SystemAudio.swift */; };
 /* End PBXBuildFile section */
@@ -43,7 +42,6 @@
 		3AB0923DA35099F83B584C34 /* DragDropService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DragDropService.swift; sourceTree = "<group>"; };
 		438C12786411D743AF62C0BF /* IslandPanels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IslandPanels.swift; sourceTree = "<group>"; };
 		527B421EBC590274035F0A53 /* IslandView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IslandView.swift; sourceTree = "<group>"; };
-		54874BE388E23E952CD888D8 /* CollapsedPlaybackActivity.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CollapsedPlaybackActivity.swift; sourceTree = "<group>"; };
 		5700767A93280B32BF7BB895 /* SettingsManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsManager.swift; sourceTree = "<group>"; };
 		58072E10A8BDE3636D55CEB5 /* MenuBarManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MenuBarManager.swift; sourceTree = "<group>"; };
 		5A4A1D306A516AB34D218817 /* AppState.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppState.swift; sourceTree = "<group>"; };
@@ -157,7 +155,6 @@
 			isa = PBXGroup;
 			children = (
 				9315E955BFC5B59D4CC69584 /* AudioSpectrum.swift */,
-				54874BE388E23E952CD888D8 /* CollapsedPlaybackActivity.swift */,
 				438C12786411D743AF62C0BF /* IslandPanels.swift */,
 				527B421EBC590274035F0A53 /* IslandView.swift */,
 				B7A786ED4F8589C758FD220C /* NotchShape.swift */,
@@ -285,7 +282,6 @@
 				DAE3F33BBAC39ACABB50092E /* AppDelegate.swift in Sources */,
 				6E07CE18329592000186C480 /* AppState.swift in Sources */,
 				460D85BDFFEA2A84509E7F87 /* AudioSpectrum.swift in Sources */,
-				DFFD79D362C03BA23078F078 /* CollapsedPlaybackActivity.swift in Sources */,
 				414472F25B3039DDF2C54670 /* Constants.swift in Sources */,
 				48937FAC637548F0C585C61F /* DragDropService.swift in Sources */,
 				B8510D27D5FBCAF5CBA4A1A7 /* Extensions.swift in Sources */,
@@ -318,6 +314,8 @@
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CODE_SIGN_ENTITLEMENTS = YuLingDongDao/Entitlements.plist;
 				COMBINE_HIDPI_IMAGES = YES;
+				DEAD_CODE_STRIPPING = YES;
+				DEPLOYMENT_POSTPROCESSING = YES;
 				INFOPLIST_FILE = YuLingDongDao/Info.plist;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
@@ -326,6 +324,8 @@
 				PRODUCT_BUNDLE_IDENTIFIER = com.yuxi.yulingdongdao;
 				PRODUCT_NAME = "岛一下";
 				SDKROOT = macosx;
+				STRIP_INSTALLED_PRODUCT = YES;
+				SWIFT_OPTIMIZATION_LEVEL = "-Osize";
 			};
 			name = Release;
 		};

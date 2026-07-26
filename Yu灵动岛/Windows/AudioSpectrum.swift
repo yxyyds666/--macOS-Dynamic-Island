@@ -8,19 +8,33 @@ struct AudioSpectrumView: View {
     var barCount: Int = 4
     var maxHeight: CGFloat = 16
 
+    private let barWidth: CGFloat = 2.5
+    private let barSpacing: CGFloat = 2.5
+
     var body: some View {
-        TimelineView(.animation(minimumInterval: 1.0 / 30.0, paused: !isPlaying)) { timeline in
+        // This animation runs the whole time music plays — the single largest
+        // steady-state cost in the app — so it is tuned twice over: 15 fps
+        // (the ~2.5 pt bars stay fluid; each tick costs a full CA transaction
+        // flush regardless of how little changed), and a single Canvas redraw
+        // per tick instead of per-bar SwiftUI views with their own layers.
+        TimelineView(.animation(minimumInterval: 1.0 / 15.0, paused: !isPlaying)) { timeline in
             let t = timeline.date.timeIntervalSinceReferenceDate
-            HStack(alignment: .center, spacing: 2.5) {
-                ForEach(0..<barCount, id: \.self) { i in
-                    Capsule()
-                        .fill(.white.opacity(isPlaying ? 0.9 : 0.4))
-                        .frame(width: 2.5, height: barHeight(i, t))
+            Canvas { ctx, size in
+                let color = Color.white.opacity(isPlaying ? 0.9 : 0.4)
+                var x = (size.width - intrinsicWidth) / 2
+                for i in 0..<barCount {
+                    let h = barHeight(i, t)
+                    let rect = CGRect(x: x, y: (size.height - h) / 2, width: barWidth, height: h)
+                    ctx.fill(Path(roundedRect: rect, cornerRadius: barWidth / 2), with: .color(color))
+                    x += barWidth + barSpacing
                 }
             }
-            .frame(height: maxHeight, alignment: .center)
-            .animation(.easeOut(duration: 0.12), value: isPlaying)
+            .frame(width: intrinsicWidth, height: maxHeight)
         }
+    }
+
+    private var intrinsicWidth: CGFloat {
+        CGFloat(barCount) * barWidth + CGFloat(barCount - 1) * barSpacing
     }
 
     private func barHeight(_ i: Int, _ t: Double) -> CGFloat {

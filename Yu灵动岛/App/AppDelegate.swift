@@ -45,7 +45,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         self.mediaService = media
         state.mediaService = media
         media.startListening()
-        state.startProgressTimer()
         state.syncVolumeFromSystem()
 
         setupMediaBindings(media, state: state)
@@ -222,13 +221,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                     let changed   = newId != prevId
                     let hadTrack  = !state.songTitle.isEmpty
 
-                    state.songTitle = info.title
-                    state.artistName = info.artist
-                    state.albumName  = info.album
-                    state.albumArt   = info.artwork
+                    // Assign only on change: @Observable notifies on every
+                    // set, and each notification re-evaluates dependent views.
+                    if state.songTitle != info.title    { state.songTitle = info.title }
+                    if state.artistName != info.artist  { state.artistName = info.artist }
+                    if state.albumName != info.album    { state.albumName = info.album }
+                    if state.albumArt !== info.artwork  { state.albumArt = info.artwork }
                     state.currentTime = info.elapsedTime
-                    state.duration    = info.duration
-                    state.isPlaying   = info.isPlaying
+                    if state.duration != info.duration  { state.duration = info.duration }
+                    if state.isPlaying != info.isPlaying { state.isPlaying = info.isPlaying }
+                    state.setProgressTimerActive(info.isPlaying)
                     state.updateSource(bundleID: info.sourceBundleID)
                     self?.menuBarManager?.updateIcon()
 

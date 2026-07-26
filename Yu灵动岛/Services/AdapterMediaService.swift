@@ -38,6 +38,12 @@ final class AdapterMediaService: MediaServiceProtocol, @unchecked Sendable {
     private var primeAttempts = 0
     private var wakeObserver: NSObjectProtocol?
 
+    /// Artwork stays in `merged` across every diff, so without caching each
+    /// publish re-decodes a few hundred KB of base64 into a fresh NSImage —
+    /// and the fresh instance defeats identity checks downstream.
+    private var artworkCacheKey: Int = 0
+    private var artworkCache: NSImage?
+
     init() {
         let resources = Bundle.main.resourceURL?.appendingPathComponent("MediaRemoteAdapter")
         let script = resources?.appendingPathComponent("mediaremote-adapter.pl")
@@ -286,9 +292,18 @@ final class AdapterMediaService: MediaServiceProtocol, @unchecked Sendable {
         let elapsed = currentElapsedTime(from: dict, duration: duration, isPlaying: playing)
 
         var artwork: NSImage?
-        if let b64 = dict["artworkData"] as? String,
-           let imgData = Data(base64Encoded: b64) {
-            artwork = NSImage(data: imgData)
+        if let b64 = dict["artworkData"] as? String {
+            let key = b64.hashValue
+            if key == artworkCacheKey, let cached = artworkCache {
+                artwork = cached
+            } else if let imgData = Data(base64Encoded: b64) {
+                artwork = NSImage(data: imgData)
+                artworkCacheKey = key
+                artworkCache = artwork
+            }
+        } else {
+            artworkCacheKey = 0
+            artworkCache = nil
         }
 
         // For web players the framework reports the page's client id in

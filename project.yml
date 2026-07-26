@@ -43,6 +43,14 @@ targets:
         PRODUCT_NAME: 岛一下
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
         CODE_SIGN_ENTITLEMENTS: YuLingDongDao/Entitlements.plist
+      configs:
+        Release:
+          # UI app with no hot Swift loops: size-optimized codegen and a
+          # stripped symbol table cost nothing perceptible at runtime.
+          SWIFT_OPTIMIZATION_LEVEL: "-Osize"
+          DEPLOYMENT_POSTPROCESSING: YES
+          STRIP_INSTALLED_PRODUCT: YES
+          DEAD_CODE_STRIPPING: YES
     entitlements:
       path: YuLingDongDao/Entitlements.plist
       properties:

@@ -277,11 +277,17 @@ final class AppState {
 
     func updateCurrentLyric(at time: TimeInterval) {
         guard case .synced(let lines) = lyricsState, !lines.isEmpty else {
-            currentLyricIndex = -1; return
+            if currentLyricIndex != -1 { currentLyricIndex = -1 }
+            return
         }
-        var idx = -1
-        for (i, line) in lines.enumerated() where line.time <= time { idx = i }
-        currentLyricIndex = idx
+        // Lines are time-sorted: binary-search the last one at or before `time`.
+        var lo = 0, hi = lines.count - 1, idx = -1
+        while lo <= hi {
+            let mid = (lo + hi) / 2
+            if lines[mid].time <= time { idx = mid; lo = mid + 1 }
+            else { hi = mid - 1 }
+        }
+        if currentLyricIndex != idx { currentLyricIndex = idx }
     }
 
     // MARK: - Music source
@@ -316,7 +322,11 @@ final class AppState {
 
     // MARK: - Media Control
 
-    func togglePlayPause() { mediaService?.togglePlayPause(); isPlaying.toggle() }
+    func togglePlayPause() {
+        mediaService?.togglePlayPause()
+        isPlaying.toggle()
+        setProgressTimerActive(isPlaying)
+    }
     func nextTrack()        { mediaService?.nextTrack() }
     func previousTrack()    { mediaService?.previousTrack() }
 
@@ -338,6 +348,17 @@ final class AppState {
 
     func syncVolumeFromSystem() {
         if let v = SystemAudio.currentVolume() { volume = v }
+    }
+
+    /// The 0.5 s progress timer only runs while something is actually playing;
+    /// paused/idle it is torn down entirely instead of ticking no-ops.
+    func setProgressTimerActive(_ active: Bool) {
+        if active {
+            guard progressTimer == nil else { return }
+            startProgressTimer()
+        } else {
+            stopProgressTimer()
+        }
     }
 
     func startProgressTimer() {
