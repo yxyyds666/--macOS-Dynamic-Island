@@ -15,6 +15,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     /// One entry per active screen. Key = screen's display-id string.
     private var screenControllers: [String: ScreenController] = [:]
 
+    /// The single shared mouse monitor pair (global + local) driving hover and
+    /// click-through for every island window. App-lifetime; windows can come
+    /// and go freely without touching these.
+    private var globalMouseMonitor: Any?
+    private var localMouseMonitor: Any?
+
     private var cancellables = Set<AnyCancellable>()
     private var lyricRequestGeneration = 0
     private var lyricFetchTask: Task<Void, Never>?
@@ -54,7 +60,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                             title: state.songTitle, artist: state.artistName,
                             album: state.albumName, artwork: state.albumArt,
                             duration: state.duration, elapsedTime: state.currentTime,
-                            isPlaying: state.isPlaying
+                            isPlaying: state.isPlaying, sourceBundleID: state.sourceBundleID
                         ),
                         into: state, forceRefresh: true)
                 }
@@ -80,6 +86,43 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
 
         buildScreenControllers(state: state, menuManager: menuManager)
+        installSharedMouseMonitor()
+    }
+
+    // MARK: - Shared mouse monitor
+
+    /// One monitor pair for the whole app. Each island window starts
+    /// click-through (`ignoresMouseEvents = true`) and cannot receive
+    /// mouse-moved events itself, so hover/click-through must be driven from
+    /// here: forward the cursor position to every window and let each decide
+    /// whether the pointer is over its island. Global covers other apps being
+    /// active; local covers our own window being key (expanded state), where
+    /// events route locally and the global monitor stays silent.
+    private func installSharedMouseMonitor() {
+        let forward: @MainActor () -> Void = { [weak self] in
+            guard let self, !self.screenControllers.isEmpty else { return }
+            let point = NSEvent.mouseLocation
+            for ctrl in self.screenControllers.values {
+                ctrl.window.handlePointerMove(screenPoint: point)
+            }
+        }
+        globalMouseMonitor = NSEvent.addGlobalMonitorForEvents(matching: [.mouseMoved]) { _ in
+            MainActor.assumeIsolated(forward)
+        }
+        localMouseMonitor = NSEvent.addLocalMonitorForEvents(matching: [.mouseMoved]) { event in
+            MainActor.assumeIsolated(forward)
+            return event
+        }
+        // Cover the cursor already resting on an island at launch: monitors
+        // only fire on movement.
+        forward()
+    }
+
+    private func removeSharedMouseMonitor() {
+        if let globalMouseMonitor { NSEvent.removeMonitor(globalMouseMonitor) }
+        if let localMouseMonitor { NSEvent.removeMonitor(localMouseMonitor) }
+        globalMouseMonitor = nil
+        localMouseMonitor = nil
     }
 
     // MARK: - Screen management
@@ -131,16 +174,20 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             screenControllers.removeValue(forKey: key)
         }
 
-        // Create controllers for new target screens.
-        for screen in targets where !existingKeys.contains(displayKey(for: screen)) {
+        // Create controllers for new target screens; refresh survivors with the
+        // newly resolved NSScreen (old instances can carry stale geometry after
+        // a reconfiguration) before relocating their windows.
+        for screen in targets {
             let key = displayKey(for: screen)
-            let ctrl = ScreenController(screen: screen, appState: state)
-            screenControllers[key] = ctrl
-            setupIslandObserver(island: ctrl.island, window: ctrl.window)
+            if let ctrl = screenControllers[key] {
+                ctrl.island.updateScreen(screen)
+                ctrl.window.relocate()
+            } else {
+                let ctrl = ScreenController(screen: screen, appState: state)
+                screenControllers[key] = ctrl
+                setupIslandObserver(island: ctrl.island, window: ctrl.window)
+            }
         }
-
-        // Relocate existing windows (screen may have moved).
-        for ctrl in screenControllers.values { ctrl.window.relocate() }
 
         // Re-wire primary island.
         let primaryKey = NotchDetector.builtInNotchScreen.map { displayKey(for: $0) } ?? ""
@@ -182,6 +229,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                     state.currentTime = info.elapsedTime
                     state.duration    = info.duration
                     state.isPlaying   = info.isPlaying
+                    state.updateSource(bundleID: info.sourceBundleID)
                     self?.menuBarManager?.updateIcon()
 
                     if info.title.isEmpty {
@@ -249,6 +297,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     // MARK: - Terminate
 
     func applicationWillTerminate(_ notification: Notification) {
+        removeSharedMouseMonitor()
         cancelLyricFetch()
         mediaService?.stopListening()
         appState?.stopProgressTimer()

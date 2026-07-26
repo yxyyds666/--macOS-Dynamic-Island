@@ -46,6 +46,7 @@ struct MusicPanel: View {
                         namespace: namespace
                     )
                     .scaleEffect(artworkBreathing ? 1.022 : 1)
+                    .modifier(OpenSourceOnTap(appState: appState))
 
                     // Title + artist under the artwork.
                     VStack(spacing: 3) {
@@ -224,6 +225,7 @@ struct MusicPanel: View {
         )
         .scaleEffect(artworkBreathing ? 1.025 : 1)
         .frame(width: side + 8, height: side + 8)
+        .modifier(OpenSourceOnTap(appState: appState))
     }
 
 
@@ -514,5 +516,25 @@ struct ActivityCapsule: View {
     private var subtitle: String {
         if !appState.artistName.isEmpty && !appState.albumName.isEmpty { return "\(appState.artistName) · \(appState.albumName)" }
         return appState.artistName.isEmpty ? appState.albumName : appState.artistName
+    }
+}
+
+// MARK: - Open-source-app tap
+
+/// Clicking the artwork brings the media's source app forward. Inert when the
+/// source is unknown, so the artwork stays a plain image in that case.
+struct OpenSourceOnTap: ViewModifier {
+    let appState: AppState
+
+    func body(content: Content) -> some View {
+        if appState.sourceBundleID != nil {
+            content
+                .contentShape(Rectangle())
+                .onTapGesture { appState.openMusicSource() }
+                .pointerStyle(.link)
+                .help("在「\(appState.sourceAppName ?? "来源应用")」中打开")
+        } else {
+            content
+        }
     }
 }

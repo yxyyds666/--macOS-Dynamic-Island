@@ -42,6 +42,10 @@ struct IslandArtwork: View {
     var cornerRadius: CGFloat
     var namespace: Namespace.ID?
 
+    /// Below this edge length the source badge would just be noise.
+    private var showsSourceBadge: Bool { size >= 40 }
+    private var badgeSide: CGFloat { min(size * 0.3, 28) }
+
     var body: some View {
         Group {
             if let art = appState.albumArt {
@@ -58,6 +62,18 @@ struct IslandArtwork: View {
         }
         .frame(width: size, height: size)
         .clipShape(RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))
+        .overlay(alignment: .bottomTrailing) {
+            // Source-app badge. macOS app icons carry their own shape and
+            // transparent margins, so render as-is — no extra clipping.
+            if showsSourceBadge, let icon = appState.sourceAppIcon {
+                Image(nsImage: icon)
+                    .resizable()
+                    .interpolation(.high)
+                    .frame(width: badgeSide, height: badgeSide)
+                    .shadow(color: .black.opacity(0.55), radius: 2, y: 0.5)
+                    .padding(size * 0.03)
+            }
+        }
         .modifier(OptionalMatchedGeometry(id: "albumArt", namespace: namespace))
     }
 }

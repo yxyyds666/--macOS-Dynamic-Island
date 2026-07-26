@@ -204,6 +204,11 @@ final class AdapterMediaService: MediaServiceProtocol, @unchecked Sendable {
             artwork = NSImage(data: imgData)
         }
 
+        // For web players the framework reports the page's client id in
+        // bundleIdentifier's absence via the parent (browser) bundle.
+        let bundleID = (dict["bundleIdentifier"] as? String)
+            ?? (dict["parentApplicationBundleIdentifier"] as? String)
+
         let info = NowPlayingInfo(
             title: title,
             artist: artist,
@@ -211,7 +216,8 @@ final class AdapterMediaService: MediaServiceProtocol, @unchecked Sendable {
             artwork: artwork,
             duration: duration,
             elapsedTime: elapsed,
-            isPlaying: playing
+            isPlaying: playing,
+            sourceBundleID: bundleID?.isEmpty == false ? bundleID : nil
         )
 
         DispatchQueue.main.async { [weak self] in

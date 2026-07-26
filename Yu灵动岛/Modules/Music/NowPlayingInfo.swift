@@ -8,7 +8,9 @@ struct NowPlayingInfo: Equatable {
     let duration: TimeInterval
     let elapsedTime: TimeInterval
     let isPlaying: Bool
-    
+    /// Bundle id of the app the media is playing from (e.g. com.netease.163music).
+    let sourceBundleID: String?
+
     static let empty = NowPlayingInfo(
         title: "",
         artist: "",
@@ -16,7 +18,8 @@ struct NowPlayingInfo: Equatable {
         artwork: nil,
         duration: 0,
         elapsedTime: 0,
-        isPlaying: false
+        isPlaying: false,
+        sourceBundleID: nil
     )
     
     var hasArtwork: Bool {

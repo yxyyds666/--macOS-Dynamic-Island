@@ -27,8 +27,10 @@ enum ActivityContent: Equatable { case lyrics, trackInfo }
 final class IslandState {
     // MARK: Properties
 
-    /// The screen this island lives on.
-    let screen: NSScreen
+    /// The screen this island lives on. NSScreen instances are snapshots —
+    /// after display reconfiguration the old object may carry stale geometry,
+    /// so the app delegate re-resolves and swaps it in via `updateScreen`.
+    private(set) var screen: NSScreen
 
     /// The reveal state for this screen's island.
     var revealState: RevealState = .idle
@@ -170,6 +172,13 @@ final class IslandState {
     }
 
     // MARK: Notch size
+
+    /// Swap in the freshly resolved NSScreen for this display (call on display
+    /// reconfiguration, before recomputing window geometry from it).
+    func updateScreen(_ newScreen: NSScreen) {
+        screen = newScreen
+        updateNotchSize()
+    }
 
     func updateNotchSize() {
         notchSize = IslandState.computeNotchSize(for: screen)

@@ -24,6 +24,11 @@ final class AppState {
     var duration: TimeInterval = 0
     var volume: Float = 0.5
 
+    /// The app the media is playing from, resolved once per bundle-id change.
+    private(set) var sourceBundleID: String?
+    private(set) var sourceAppIcon: NSImage?
+    private(set) var sourceAppName: String?
+
     // MARK: - Lyrics
 
     enum LyricsState: Equatable {
@@ -274,6 +279,36 @@ final class AppState {
         var idx = -1
         for (i, line) in lines.enumerated() where line.time <= time { idx = i }
         currentLyricIndex = idx
+    }
+
+    // MARK: - Music source
+
+    /// Update the source app for the current media. Icon/name lookups hit the
+    /// filesystem, so only re-resolve when the bundle id actually changes.
+    func updateSource(bundleID: String?) {
+        guard bundleID != sourceBundleID else { return }
+        sourceBundleID = bundleID
+        guard let bundleID,
+              let url = NSWorkspace.shared.urlForApplication(withBundleIdentifier: bundleID) else {
+            sourceAppIcon = nil
+            sourceAppName = nil
+            return
+        }
+        sourceAppIcon = NSWorkspace.shared.icon(forFile: url.path)
+        sourceAppName = (FileManager.default.displayName(atPath: url.path) as NSString)
+            .deletingPathExtension
+    }
+
+    /// Bring the source app forward (launch it if it quit since reporting).
+    func openMusicSource() {
+        guard let sourceBundleID else { return }
+        if let running = NSRunningApplication
+            .runningApplications(withBundleIdentifier: sourceBundleID).first {
+            running.activate()
+        } else if let url = NSWorkspace.shared
+            .urlForApplication(withBundleIdentifier: sourceBundleID) {
+            NSWorkspace.shared.openApplication(at: url, configuration: NSWorkspace.OpenConfiguration())
+        }
     }
 
     // MARK: - Media Control
