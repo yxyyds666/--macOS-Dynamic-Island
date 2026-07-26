@@ -31,6 +31,11 @@ final class NotchWindow: NSWindow {
     override var canBecomeMain: Bool { false }
 
     private func setupWindow(frame: NSRect) {
+        // reconcileScreenControllers() calls close() on windows whose screen
+        // dropped out (unplug, or turning off show-on-all-displays). NSWindow
+        // defaults this to true, which under ARC over-releases a window we still
+        // hold — a classic crash. Keep ownership with ARC.
+        isReleasedWhenClosed = false
         isOpaque = false
         backgroundColor = .clear
         hasShadow = false

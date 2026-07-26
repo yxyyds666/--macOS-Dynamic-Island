@@ -105,11 +105,21 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 ctrl.window.handlePointerMove(screenPoint: point)
             }
         }
+        // AppKit doesn't document which thread these callbacks run on. In
+        // practice it's the main thread, but assumeIsolated would crash if that
+        // ever changed; hop explicitly when we're not already on main.
+        let dispatch: () -> Void = {
+            if Thread.isMainThread {
+                MainActor.assumeIsolated(forward)
+            } else {
+                DispatchQueue.main.async { MainActor.assumeIsolated(forward) }
+            }
+        }
         globalMouseMonitor = NSEvent.addGlobalMonitorForEvents(matching: [.mouseMoved]) { _ in
-            MainActor.assumeIsolated(forward)
+            dispatch()
         }
         localMouseMonitor = NSEvent.addLocalMonitorForEvents(matching: [.mouseMoved]) { event in
-            MainActor.assumeIsolated(forward)
+            dispatch()
             return event
         }
         // Cover the cursor already resting on an island at launch: monitors

@@ -110,13 +110,19 @@ final class AppState {
             ? preferred
             : (availableModules.first ?? .music)
 
+        // Reload mirrored settings on change, but do NOT force currentModule
+        // back to the default module: "default module" only chooses what shows
+        // at launch. Forcing it here would yank the user off whatever tab they
+        // are viewing every time any unrelated setting changes (e.g. dragging
+        // the lyrics-scale slider fires this on every tick). Only clamp when the
+        // current module becomes unavailable.
         NotificationCenter.default.addObserver(
             forName: .settingsDidChange,
             object: nil,
             queue: .main
         ) { [weak self] _ in
             Task { @MainActor [weak self] in
-                self?.reloadSettings(applyDefault: true)
+                self?.reloadSettings(applyDefault: false)
             }
         }
     }
