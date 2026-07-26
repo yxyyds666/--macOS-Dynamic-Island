@@ -1,0 +1,63 @@
+name: Release
+
+# 每次 push 到 main：构建 Release 包并发布为 GitHub Release。
+# 注意：一次 push 多个 commit 只会触发一次（对 push 的头部 commit 构建）。
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: write
+
+jobs:
+  build-release:
+    runs-on: macos-26
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: 环境信息
+        run: |
+          sw_vers
+          xcodebuild -version
+
+      - name: 安装 XcodeGen
+        run: brew install xcodegen
+
+      - name: 构建打包（xcodegen + Release + ad-hoc 签名）
+        run: ./build.sh
+
+      - name: 压缩 app
+        # ditto 保留 .app 内的符号链接（framework 结构）与签名，zip 命令会破坏它们
+        run: |
+          SHORT_SHA="${GITHUB_SHA:0:7}"
+          ditto -c -k --keepParent "dist/岛一下.app" "dist/岛一下-${SHORT_SHA}.zip"
+          echo "ASSET=dist/岛一下-${SHORT_SHA}.zip" >> "$GITHUB_ENV"
+          echo "SHORT_SHA=${SHORT_SHA}" >> "$GITHUB_ENV"
+
+      - name: 发布 Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          TAG="build-${{ github.run_number }}"
+          {
+            echo "自动构建自 commit ${GITHUB_SHA}"
+            echo
+            echo "> $(git log -1 --pretty=%s)"
+            echo
+            echo '---'
+            echo
+            echo '**系统要求**：macOS 26+。'
+            echo
+            echo 'app 为 ad-hoc 签名，下载后如被 Gatekeeper 拦截，先执行：'
+            echo
+            echo '```bash'
+            echo 'xattr -cr 岛一下.app'
+            echo '```'
+            echo
+            echo '或对 app 右键 → 打开。'
+          } > /tmp/release-notes.md
+          gh release create "$TAG" \
+            --title "岛一下 build ${{ github.run_number }} (${SHORT_SHA})" \
+            --notes-file /tmp/release-notes.md \
+            "$ASSET"
