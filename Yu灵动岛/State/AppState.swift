@@ -91,6 +91,8 @@ final class AppState {
     var hoverDelay: Double = 0
     /// Whether the album artwork gently breathes (scales) while playing.
     var artworkBreathing: Bool = true
+    /// Scale factor for lyrics text in the expanded panel.
+    var lyricsFontScale: Double = 1.0
 
     // MARK: - Media control (injected by AppDelegate; not observed)
 
@@ -162,6 +164,7 @@ final class AppState {
         hoverToReveal    = s.hoverToReveal
         hoverDelay       = s.hoverDelay
         artworkBreathing = s.artworkBreathing
+        lyricsFontScale  = s.lyricsFontScale > 0 ? s.lyricsFontScale : 1.0
     }
 
     // MARK: - File management

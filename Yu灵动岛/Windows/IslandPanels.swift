@@ -392,6 +392,9 @@ private struct LyricsPanel: View {
     @Bindable var appState: AppState
     @State private var isUserScrolling = false
 
+    /// User-adjustable text scale (settings → 歌词字号).
+    private var scale: CGFloat { CGFloat(max(0.5, appState.lyricsFontScale)) }
+
     var body: some View {
         VStack(alignment: .center, spacing: 5) {
             if case .failed = appState.lyricsState {
@@ -403,7 +406,7 @@ private struct LyricsPanel: View {
                 case .loading: HStack(spacing: 6) { ProgressView().controlSize(.small); Text("正在加载歌词…") }.font(.system(size: 11)).foregroundStyle(.white.opacity(0.55))
                 case .failed: status("歌词加载失败")
                 case .notFound: status("暂无歌词")
-                case .plain(let text): ScrollView { Text(text).font(.system(size: 11)).foregroundStyle(.white.opacity(0.7)).multilineTextAlignment(.center).frame(maxWidth: .infinity, alignment: .center).padding(6) }
+                case .plain(let text): ScrollView { Text(text).font(.system(size: 11 * scale)).foregroundStyle(.white.opacity(0.7)).multilineTextAlignment(.center).frame(maxWidth: .infinity, alignment: .center).padding(6) }
                 case .synced(let lines): synced(lines)
                 }
             }
@@ -418,10 +421,10 @@ private struct LyricsPanel: View {
                 LazyVStack(alignment: .center, spacing: 4) {
                     ForEach(Array(lines.enumerated()), id: \.element.id) { index, line in
                         let active = index == appState.currentLyricIndex
-                        Text(line.text).font(.system(size: active ? 13 : 11, weight: active ? .semibold : .regular))
+                        Text(line.text).font(.system(size: (active ? 13 : 11) * scale, weight: active ? .semibold : .regular))
                             .foregroundStyle(.white.opacity(active ? 1 : 0.42)).frame(maxWidth: .infinity, alignment: .center)
                             .multilineTextAlignment(.center)
-                            .padding(.horizontal, 9).padding(.vertical, 3)
+                            .padding(.horizontal, 9).padding(.vertical, 3 * scale)
                             .contentShape(Rectangle()).id(line.id).onTapGesture { appState.seek(to: line.time) }
                     }
                 }.padding(.vertical, 6)
@@ -445,6 +448,7 @@ struct ActivityCapsule: View {
     let activityContent: ActivityContent?
     let notchWidth: CGFloat
     let notchHeight: CGFloat
+    var isPinned: Bool = false
     var namespace: Namespace.ID? = nil
     @State private var artworkBreathing = false
 
@@ -452,12 +456,28 @@ struct ActivityCapsule: View {
         HStack(spacing: 0) {
             HStack { Spacer(minLength: 0); artwork }.frame(maxWidth: .infinity).padding(.trailing, 12)
             Color.clear.frame(width: notchWidth)
-            HStack { rightContent; Spacer(minLength: 0) }.frame(maxWidth: .infinity).padding(.leading, 12)
+            HStack {
+                rightContent
+                Spacer(minLength: 0)
+                if isPinned { pinBadge }
+            }
+            .frame(maxWidth: .infinity).padding(.leading, 12)
         }
         .frame(maxHeight: .infinity)
         .padding(.top, max(0, notchHeight - AppConstants.islandActivityHeight + 6)).padding(.bottom, 6)
+        .animation(.smooth(duration: 0.18), value: isPinned)
         .onAppear { syncCapsuleAnimation() }
         .onChange(of: appState.isPlaying) { _, _ in syncCapsuleAnimation() }
+    }
+
+    private var pinBadge: some View {
+        Image(systemName: "pin.fill")
+            .font(.system(size: 9, weight: .semibold))
+            .foregroundStyle(.white.opacity(0.55))
+            .rotationEffect(.degrees(45))
+            .padding(.trailing, 4)
+            .transition(.opacity.combined(with: .scale(scale: 0.6)))
+            .help("已固定，右键取消")
     }
 
     private func syncCapsuleAnimation() {

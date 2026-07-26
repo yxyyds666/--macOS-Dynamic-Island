@@ -93,6 +93,7 @@ enum AppConstants {
         static let artworkBreathing = "artworkBreathing"
         static let showMenuBarIcon = "showMenuBarIcon"
         static let showOnAllDisplays = "showOnAllDisplays"
+        static let lyricsFontScale = "lyricsFontScale"
     }
 }
 

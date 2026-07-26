@@ -124,6 +124,12 @@ final class SettingsManager: @unchecked Sendable {
         set { defaults.set(newValue, forKey: AppConstants.DefaultsKeys.showOnAllDisplays) }
     }
 
+    /// Scale factor for lyrics text in the expanded panel. 1.0 = default size.
+    var lyricsFontScale: Double {
+        get { defaults.double(forKey: AppConstants.DefaultsKeys.lyricsFontScale) }
+        set { defaults.set(newValue, forKey: AppConstants.DefaultsKeys.lyricsFontScale) }
+    }
+
     var enabledModules: [NotchModule] {
         normalizeModuleSettings()
         var modules: [NotchModule] = []
@@ -142,7 +148,8 @@ final class SettingsManager: @unchecked Sendable {
             AppConstants.DefaultsKeys.hoverDelay: 0.0,
             AppConstants.DefaultsKeys.artworkBreathing: true,
             AppConstants.DefaultsKeys.showMenuBarIcon: true,
-            AppConstants.DefaultsKeys.showOnAllDisplays: false
+            AppConstants.DefaultsKeys.showOnAllDisplays: false,
+            AppConstants.DefaultsKeys.lyricsFontScale: 1.0
         ])
         normalizeModuleSettings()
     }

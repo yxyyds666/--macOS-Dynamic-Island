@@ -69,6 +69,7 @@ struct IslandView: View {
                 activityContent: island.activityContent,
                 notchWidth: notchWidth,
                 notchHeight: notchHeight,
+                isPinned: island.isPinned,
                 namespace: artworkNS
             )
             .transition(.opacity)

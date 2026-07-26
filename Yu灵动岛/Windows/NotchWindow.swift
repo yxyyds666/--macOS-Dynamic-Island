@@ -171,4 +171,16 @@ private final class IslandContainerView: NSView {
         guard islandRect(for: mode).contains(local) else { return nil }
         return super.hitTest(point)
     }
+
+    /// SwiftUI has no right-click gesture on macOS; unhandled rightMouseDown
+    /// bubbles up the responder chain to here. On the hover capsule it toggles
+    /// the pin; every other state passes it along untouched.
+    override func rightMouseDown(with event: NSEvent) {
+        switch island.revealState {
+        case .activity, .hover:
+            island.togglePinned()
+        default:
+            super.rightMouseDown(with: event)
+        }
+    }
 }

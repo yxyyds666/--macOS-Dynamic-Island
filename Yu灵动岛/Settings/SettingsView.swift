@@ -52,6 +52,7 @@ private struct GeneralSettingsView: View {
     @State private var hoverToReveal = true
     @State private var hoverDelay: Double = 0
     @State private var artworkBreathing = true
+    @State private var lyricsFontScale: Double = 1.0
 
     var body: some View {
         Form {
@@ -130,6 +131,31 @@ private struct GeneralSettingsView: View {
             } footer: {
                 Text("数值越小动画越慢，越大越快。默认 1.0。")
             }
+
+            Section {
+                HStack {
+                    Text("歌词字号")
+                    Spacer()
+                    Text(String(format: "%.1f×", lyricsFontScale))
+                        .foregroundStyle(.secondary)
+                        .monospacedDigit()
+                }
+                Slider(value: $lyricsFontScale, in: 0.8...1.8, step: 0.1) {
+                    EmptyView()
+                } minimumValueLabel: {
+                    Image(systemName: "textformat.size.smaller").foregroundStyle(.secondary)
+                } maximumValueLabel: {
+                    Image(systemName: "textformat.size.larger").foregroundStyle(.secondary)
+                }
+                .onChange(of: lyricsFontScale) { _, v in
+                    settings.lyricsFontScale = v
+                    postChange()
+                }
+            } header: {
+                Text("歌词")
+            } footer: {
+                Text("调整展开面板中歌词的文字大小。默认 1.0。")
+            }
         }
         .navigationTitle("通用")
         .onAppear {
@@ -140,6 +166,7 @@ private struct GeneralSettingsView: View {
             hoverToReveal = settings.hoverToReveal
             hoverDelay = settings.hoverDelay
             artworkBreathing = settings.artworkBreathing
+            lyricsFontScale = settings.lyricsFontScale > 0 ? settings.lyricsFontScale : 1.0
         }
     }
 

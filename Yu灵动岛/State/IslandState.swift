@@ -42,6 +42,11 @@ final class IslandState {
     /// Whether a file drag is targeting this island specifically.
     var isDragTarget: Bool = false
 
+    /// Right-clicking the hover capsule pins the island: mouse-exit no longer
+    /// collapses it until unpinned (another right-click) or the reveal state
+    /// moves on (click-through to peek/expanded, explicit collapse).
+    var isPinned: Bool = false
+
     /// Weak ref to shared content so interaction methods can read music/lyrics.
     private unowned let appState: AppState
 
@@ -92,11 +97,27 @@ final class IslandState {
     }
 
     func mouseExitedNotch() {
+        guard !isPinned else { return }
         collapse()
+    }
+
+    /// Toggle the hover-capsule pin (right-click). Only meaningful while the
+    /// capsule is showing; other states ignore it.
+    func togglePinned() {
+        switch revealState {
+        case .activity, .hover:
+            isPinned.toggle()
+            // A pinned track-info capsule must not auto-dismiss from under
+            // the pin.
+            if isPinned { cancelActivityAutoDismiss() }
+        default:
+            break
+        }
     }
 
     func advanceReveal() {
         cancelActivityAutoDismiss()
+        isPinned = false
         switch revealState {
         case .peek:     revealState = .expanded
         case .expanded: break
@@ -106,12 +127,14 @@ final class IslandState {
 
     func collapse() {
         revealState = .idle
+        isPinned = false
         isDragTarget = false
         cancelActivityAutoDismiss()
     }
 
     func expand() {
         cancelActivityAutoDismiss()
+        isPinned = false
         revealState = .expanded
     }
 
@@ -130,7 +153,7 @@ final class IslandState {
             repeats: false
         ) { [weak self] _ in
             Task { @MainActor [weak self] in
-                guard let self else { return }
+                guard let self, !self.isPinned else { return }
                 if case .activity(.trackInfo) = self.revealState {
                     self.revealState = .idle
                 }
